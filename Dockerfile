@@ -16,8 +16,11 @@ USER app
 
 # Layer 1: dependencies only. `--no-install-project` skips installing our
 # own package so this layer invalidates only when pyproject.toml or
-# uv.lock change.
-COPY --chown=app:app pyproject.toml uv.lock ./
+# uv.lock change. README.md is included because pyproject.toml declares
+# `readme = "README.md"`, and hatchling validates that field at the
+# second `uv sync` step below — without README.md in the image, the
+# build fails before our source is even installed.
+COPY --chown=app:app pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Layer 2: project source.
