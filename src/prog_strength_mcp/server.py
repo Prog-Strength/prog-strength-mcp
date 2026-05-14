@@ -38,5 +38,20 @@ async def list_workouts(user_id: str) -> list[dict[str, Any]]:
 
 
 def run() -> None:
-    """Start the streamable-HTTP transport on the configured host/port."""
-    mcp.run(transport="http", host=_config.host, port=_config.port)
+    """Start the streamable-HTTP transport on the configured host/port.
+
+    `proxy_headers` + `forwarded_allow_ips` tell uvicorn to honor Caddy's
+    `X-Forwarded-Proto: https` / `X-Forwarded-Host` headers when building
+    absolute URLs — without these, redirect `Location` headers come back
+    as `http://...` because uvicorn only sees the plain-HTTP hop from
+    Caddy on the docker network.
+    """
+    mcp.run(
+        transport="http",
+        host=_config.host,
+        port=_config.port,
+        uvicorn_config={
+            "proxy_headers": True,
+            "forwarded_allow_ips": "*",
+        },
+    )
