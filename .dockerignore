@@ -24,5 +24,6 @@ build
 
 # Repo metadata not needed at runtime
 .github
-README.md
 .env.example
+# Note: README.md is NOT excluded — hatchling reads `readme = "README.md"`
+# from pyproject.toml at build time and errors if the file is missing.
