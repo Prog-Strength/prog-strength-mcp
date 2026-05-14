@@ -1,0 +1,51 @@
+name: Deploy MCP
+
+# Every push to main re-deploys. No semantic-release for v1 — the MCP
+# server is small enough that "deploy whatever is on main" is the right
+# trade-off. When the surface grows, swap in tag-based deploys.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-mcp-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: JWT_SIGNING_KEY
+          script: |
+            cd /home/ubuntu/prog-strength-mcp
+            git fetch --prune
+            git checkout main
+            git pull --ff-only
+
+            # Only secrets go in .env. Non-secret values live in
+            # docker-compose.yml so they're version-controlled and
+            # reviewable.
+            umask 077
+            cat > .env <<EOF
+            JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+            EOF
+
+            docker compose down
+            docker compose up --build -d
+
+            echo "Deployed prog-strength-mcp @ $(git rev-parse --short HEAD)"
+            docker compose ps
+            docker compose logs --tail=50

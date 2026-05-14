@@ -1,0 +1,47 @@
+[project]
+name = "prog-strength-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server that proxies the Prog Strength API."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Jimmy Wallace" }]
+
+dependencies = [
+    # FastMCP 2 — streamable HTTP transport, async tool handlers.
+    "fastmcp>=2.0",
+    # HTTP client for proxying calls to the Go Chi API.
+    "httpx>=0.27",
+    # JWT minting (HS256) so this server can issue user-scoped tokens to the
+    # API on each tool call. Matches the API's `golang-jwt/jwt/v5` HS256 setup.
+    "pyjwt>=2.8",
+]
+
+[project.scripts]
+prog-strength-mcp = "prog_strength_mcp.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",  # httpx mocking for tests
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prog_strength_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

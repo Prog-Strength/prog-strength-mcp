@@ -1,0 +1,28 @@
+services:
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # No public `ports:` — Caddy (in the prog-strength-api stack) is the
+    # only public-facing container. Caddy reaches us at `mcp:8000` via
+    # the shared docker network.
+    expose:
+      - "8000"
+    environment:
+      # Calls the api container directly on the shared docker network.
+      # Avoids re-entering the public Caddy hop and the TLS roundtrip.
+      - PROG_STRENGTH_API_BASE_URL=http://api:8080
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+      # Forwarded from .env, which the deploy workflow writes from
+      # GitHub repository secrets on each release.
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+    restart: unless-stopped
+
+# Join the shared network the api + caddy live on. `external: true` means
+# docker compose won't try to create or destroy it — the host owns its
+# lifecycle (bootstrap.sh creates it on fresh hosts).
+networks:
+  default:
+    name: prog-strength
+    external: true
