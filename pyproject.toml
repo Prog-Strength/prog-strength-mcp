@@ -27,6 +27,13 @@ dev = [
     "respx>=0.21",  # httpx mocking for tests
     "ruff>=0.6",
 ]
+# Optional group for runnable examples in examples/. Not installed by
+# `uv sync` (without `--group examples`) and not pulled into the Docker
+# image — the server itself does not depend on the Anthropic SDK.
+examples = [
+    "anthropic>=0.40",
+    "mcp>=1.0",
+]
 
 [build-system]
 requires = ["hatchling"]
