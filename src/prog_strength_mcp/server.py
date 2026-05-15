@@ -1,9 +1,12 @@
 from typing import Any
 
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from prog_strength_mcp.api_client import APIClient, APIError
 from prog_strength_mcp.config import Config
+from prog_strength_mcp.version import SERVICE, VERSION
 
 mcp: FastMCP = FastMCP("prog-strength-mcp")
 
@@ -12,6 +15,20 @@ mcp: FastMCP = FastMCP("prog-strength-mcp")
 # tool calls — which is what we want.
 _config = Config.from_env()
 _api = APIClient(base_url=_config.api_base_url, signing_key=_config.jwt_signing_key)
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_: Request) -> JSONResponse:
+    """Liveness probe with build info. Mirrors the API's /health envelope
+    so the same `curl <host>/health | jq` muscle memory works for both.
+    """
+    return JSONResponse(
+        {
+            "service": SERVICE,
+            "version": VERSION,
+            "message": "service is healthy",
+        }
+    )
 
 
 @mcp.tool
