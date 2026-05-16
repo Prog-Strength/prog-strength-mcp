@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.3.0...v0.4.0) (2026-05-16)
+
+
+### Features
+
+* **workouts:** Add tools to allow agent to record user workouts ([5ee9693](https://github.com/Prog-Strength/prog-strength-mcp/commit/5ee9693d802d60d1869394c877b5ba17e4abe17a))
+
 # [0.3.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.2.0...v0.3.0) (2026-05-15)
 
 
