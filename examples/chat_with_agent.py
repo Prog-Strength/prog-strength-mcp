@@ -43,12 +43,42 @@ def _result_text(result) -> str:
     )
 
 
+async def _read_message() -> str | None:
+    """Read one user turn from stdin.
+
+    Single-line by default — Enter sends. To compose a multi-line message
+    (e.g., paste a workout log with blank lines / tabs / indentation), type
+    `\"\"\"` on its own line to open the block, then `\"\"\"` again on its own
+    line to send. Whitespace inside the block is preserved verbatim, since
+    that's the point — real workout notes carry meaningful structure.
+
+    Returns None on EOF / Ctrl-C so the caller can exit cleanly.
+    """
+    try:
+        first = await asyncio.to_thread(input, "you> ")
+    except (EOFError, KeyboardInterrupt):
+        return None
+    if first.strip() != '"""':
+        return first.strip()
+
+    lines: list[str] = []
+    while True:
+        try:
+            line = await asyncio.to_thread(input, "... ")
+        except (EOFError, KeyboardInterrupt):
+            # Abort the in-progress block rather than sending a partial one.
+            print()
+            return ""
+        if line.strip() == '"""':
+            return "\n".join(lines)
+        lines.append(line)
+
+
 async def _chat(session, claude, tools):
     messages: list[dict] = []
     while True:
-        try:
-            user = (await asyncio.to_thread(input, "you> ")).strip()
-        except (EOFError, KeyboardInterrupt):
+        user = await _read_message()
+        if user is None:
             print()
             return
         if user in {"/quit", "/exit"}:
@@ -102,7 +132,8 @@ async def main():
                 for t in mcp_tools
             ]
             print(f"exposed tools: {', '.join(t['name'] for t in tools) or '(none)'}")
-            print("type /quit to exit\n")
+            print("type /quit to exit")
+            print('to send a multi-line message: type """ alone, your content, then """ alone\n')
             await _chat(session, claude, tools)
 
 

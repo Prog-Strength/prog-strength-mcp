@@ -63,15 +63,76 @@ class APIClient:
             "/workouts",
             headers={"Authorization": f"Bearer {token}"},
         )
-        if resp.status_code >= 400:
-            # The API returns `{service, error}` on failure — surface the
-            # error string when present, fall back to the raw body otherwise.
-            try:
-                detail = resp.json().get("error", resp.text)
-            except ValueError:
-                detail = resp.text
-            raise APIError(resp.status_code, detail)
-
-        body = resp.json()
-        data = body.get("data")
+        _raise_for_status(resp)
+        data = resp.json().get("data")
         return data if isinstance(data, list) else []
+
+    async def list_exercises(
+        self,
+        *,
+        muscle_group: str | None = None,
+        equipment: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """GET /exercises with optional filters. Public endpoint — no JWT.
+
+        Returns the shared, admin-curated exercise catalog. The agent needs
+        this to map natural-language exercise names to the slug IDs the
+        API stores in workout logs.
+        """
+        params: dict[str, str] = {}
+        if muscle_group:
+            params["muscle_group"] = muscle_group
+        if equipment:
+            params["equipment"] = equipment
+        resp = await self._client.get("/exercises", params=params)
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
+    async def create_workout(
+        self,
+        user_id: str,
+        *,
+        exercises: list[dict[str, Any]],
+        name: str | None = None,
+        performed_at: str | None = None,
+        ended_at: str | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /workouts as `user_id`. Body shape mirrors the Go handler's
+        createWorkoutRequest. Omitted fields are left out so the API's
+        server-side defaults (name = "Workout - <date>", performed_at = now)
+        kick in.
+        """
+        token = _mint_user_token(user_id, self._signing_key)
+        body: dict[str, Any] = {"exercises": exercises}
+        if name is not None:
+            body["name"] = name
+        if performed_at is not None:
+            body["performed_at"] = performed_at
+        if ended_at is not None:
+            body["ended_at"] = ended_at
+        if notes is not None:
+            body["notes"] = notes
+
+        resp = await self._client.post(
+            "/workouts",
+            json=body,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+
+def _raise_for_status(resp: httpx.Response) -> None:
+    """Convert a non-2xx API response into APIError, pulling the `error`
+    field out of the standard `{service, error}` envelope when present.
+    """
+    if resp.status_code < 400:
+        return
+    try:
+        detail = resp.json().get("error", resp.text)
+    except ValueError:
+        detail = resp.text
+    raise APIError(resp.status_code, detail)
