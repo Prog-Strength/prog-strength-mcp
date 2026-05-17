@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.4.0...v0.5.0) (2026-05-17)
+
+
+### Features
+
+* **auth:** Forward user JWT instead of minting per call ([c899caa](https://github.com/Prog-Strength/prog-strength-mcp/commit/c899caab601a0945ce705e5924fb654b6af34fb5))
+
 # [0.4.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.3.0...v0.4.0) (2026-05-16)
 
 
