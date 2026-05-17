@@ -3,14 +3,36 @@
 Mirrors the API's `internal/workout/` package boundary. Each domain module
 exposes a `register(mcp, api)` that hangs its tools off the passed-in
 FastMCP instance — the Python parallel of the API handlers' Mount(r).
+
+Authorization is sourced from the inbound MCP request's `Authorization`
+header (the agent sets it to `Bearer <user-jwt>` when opening the MCP
+session). FastMCP exposes that header via `get_http_headers` — by
+default it strips `authorization` for security, so we have to opt in
+with `include={"authorization"}`.
 """
 
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_headers
 from pydantic import BaseModel, Field
 
 from prog_strength_mcp.api_client import APIClient, APIError
+
+
+def _auth_header_or_raise() -> str:
+    """Pull the inbound Authorization header. Tools that require auth
+    call this before forwarding to the API; missing/empty header is
+    surfaced to Claude as an error rather than letting the API 401.
+    """
+    headers = get_http_headers(include={"authorization"})
+    auth = headers.get("authorization", "")
+    if not auth:
+        raise RuntimeError(
+            "missing Authorization header on the MCP request — the agent "
+            "must open the MCP session with the user's Bearer token."
+        )
+    return auth
 
 
 class WorkoutSetInput(BaseModel):
@@ -72,22 +94,21 @@ def register(mcp: FastMCP, api: APIClient) -> None:
     """
 
     @mcp.tool
-    async def list_workouts(user_id: str) -> list[dict[str, Any]]:
-        """List a user's logged workouts, most recent first.
+    async def list_workouts() -> list[dict[str, Any]]:
+        """List the calling user's logged workouts, most recent first.
+
+        Identity is sourced from the inbound MCP session's Authorization
+        header (the user's JWT); the API decodes the `sub` claim and
+        scopes the results. There is no user_id parameter — Claude
+        cannot fetch another user's data.
 
         The API caps results at 50 today; pagination is not yet exposed.
         Each workout includes its exercises and sets (reps, weight, unit),
         so a single call is enough to summarize recent training.
-
-        Args:
-            user_id: The user whose workouts to fetch. The MCP server mints
-                a short-lived JWT for this user and forwards it to the API.
         """
-        if not user_id:
-            raise ValueError("user_id is required")
-
+        auth = _auth_header_or_raise()
         try:
-            return await api.list_workouts(user_id)
+            return await api.list_workouts(auth)
         except APIError as e:
             # Re-raise as a plain RuntimeError so FastMCP serializes a clean
             # tool error to the model (instead of leaking the internal class).
@@ -95,24 +116,22 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
     @mcp.tool
     async def create_workout(
-        user_id: str,
         exercises: list[WorkoutExerciseInput],
         name: str | None = None,
         performed_at: str | None = None,
         ended_at: str | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
-        """Log a new workout for a user.
+        """Log a new workout for the calling user.
 
-        Translate the user's natural-language description into structured
-        sets first: resolve each exercise to a slug via list_exercises,
-        then fill in reps, weight, and unit for every set. Bodyweight moves
-        use weight=0. If the user didn't specify a time, omit performed_at
-        and the API will stamp it as "now".
+        Identity is sourced from the inbound MCP session's Authorization
+        header. Translate the user's natural-language description into
+        structured sets first: resolve each exercise to a slug via
+        list_exercises, then fill in reps, weight, and unit for every
+        set. Bodyweight moves use weight=0. If the user didn't specify
+        a time, omit performed_at and the API will stamp it as "now".
 
         Args:
-            user_id: The user logging the workout. The MCP server mints a
-                short-lived JWT for this user and forwards it to the API.
             exercises: Ordered list of exercises performed; their position
                 in this list becomes the workout's exercise order (0-indexed).
             name: Optional session name. Defaults server-side to
@@ -122,14 +141,13 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             ended_at: Optional RFC3339 end time. Must be >= performed_at.
             notes: Optional free-text notes for the whole session.
         """
-        if not user_id:
-            raise ValueError("user_id is required")
         if not exercises:
             raise ValueError("exercises must contain at least one entry")
 
+        auth = _auth_header_or_raise()
         try:
             return await api.create_workout(
-                user_id,
+                auth,
                 exercises=[ex.model_dump(exclude_none=True) for ex in exercises],
                 name=name,
                 performed_at=performed_at,

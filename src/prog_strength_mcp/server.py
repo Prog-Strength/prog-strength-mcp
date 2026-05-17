@@ -13,7 +13,10 @@ mcp: FastMCP = FastMCP("prog-strength-mcp")
 # underlying httpx.AsyncClient (with its connection pool) gets reused across
 # tool calls — which is what we want.
 _config = Config.from_env()
-api = APIClient(base_url=_config.api_base_url, signing_key=_config.jwt_signing_key)
+# No signing key — this server is now a transparent forwarder. Each tool
+# handler reads the inbound Authorization header from request context
+# and passes it through to the API. The API does the JWT validation.
+api = APIClient(base_url=_config.api_base_url)
 
 # Each domain module owns its tools and registers them onto our FastMCP
 # instance — Python parallel of the API handlers' Mount(r) pattern.

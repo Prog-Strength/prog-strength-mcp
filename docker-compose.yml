@@ -14,9 +14,6 @@ services:
       - PROG_STRENGTH_API_BASE_URL=http://api:8080
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8000
-      # Forwarded from .env, which the deploy workflow writes from
-      # GitHub repository secrets on each release.
-      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
       # Released semver (e.g. "v0.1.0"), surfaced by the /health endpoint.
       # Defaults to "dev" for local `docker compose up` without a release.
       - APP_VERSION=${APP_VERSION:-dev}

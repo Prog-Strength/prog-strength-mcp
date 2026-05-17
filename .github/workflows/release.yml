@@ -50,13 +50,12 @@ jobs:
       - name: Deploy tagged version to EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
-          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
           RELEASE_VERSION: ${{ needs.release.outputs.new_release_version }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: JWT_SIGNING_KEY,RELEASE_VERSION
+          envs: RELEASE_VERSION
           script: |
             # Abort on the first failing command. Without this, a failed
             # `docker compose up --build` is followed by trailing `ps` /
@@ -72,14 +71,13 @@ jobs:
             git fetch --tags --prune
             git checkout "v${RELEASE_VERSION}"
 
-            # Only secrets go in .env. Non-secret values live in
-            # docker-compose.yml so they're version-controlled and
-            # reviewable. APP_VERSION flows into the container's
-            # environment via docker-compose interpolation and is read
-            # at runtime by prog_strength_mcp.version.
+            # APP_VERSION flows into the container's environment via
+            # docker-compose interpolation and is read at runtime by
+            # prog_strength_mcp.version. As of the JWT-forwarding
+            # refactor this server holds no secrets — auth comes from
+            # the agent's per-request Authorization header.
             umask 077
             cat > .env <<EOF
-            JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
             APP_VERSION=v${RELEASE_VERSION}
             EOF
 

@@ -58,13 +58,12 @@ jobs:
       - name: Deploy tagged version to EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
-          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
           RELEASE_VERSION: ${{ steps.resolve.outputs.version }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: JWT_SIGNING_KEY,RELEASE_VERSION
+          envs: RELEASE_VERSION
           script: |
             # Abort on the first failing command — see release.yml for the
             # full rationale on why this matters with appleboy/ssh-action.
@@ -76,7 +75,6 @@ jobs:
 
             umask 077
             cat > .env <<EOF
-            JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
             APP_VERSION=v${RELEASE_VERSION}
             EOF
 

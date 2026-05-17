@@ -766,7 +766,6 @@ source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "httpx" },
-    { name = "pyjwt" },
 ]
 
 [package.dev-dependencies]
@@ -785,7 +784,6 @@ examples = [
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.0" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "pyjwt", specifier = ">=2.8" },
 ]
 
 [package.metadata.requires-dev]

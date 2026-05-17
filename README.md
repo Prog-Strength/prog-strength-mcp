@@ -13,17 +13,25 @@ this server never reads or writes the SQLite database directly.
 Claude / MCP client ──HTTP──▶ prog-strength-mcp (FastMCP) ──HTTP──▶ prog-strength-api (Go Chi) ──▶ SQLite
 ```
 
-The MCP server holds the API's `JWT_SIGNING_KEY` and mints a short-lived
-(5 min) per-call JWT for whichever `user_id` the tool is invoked with.
-This makes it a privileged service — anything that can reach it can read
-any user's data. Front-door auth on this server is a v2 concern; for now,
-keep its port closed to the public internet.
+**Auth model.** This server is a transparent forwarder. The MCP client
+(the agent) opens each session with the end-user's JWT in the HTTP
+`Authorization` header; FastMCP exposes that header to tool handlers
+via `get_http_headers`, and the handlers pass it verbatim through to
+the API. **MCP holds no signing key and cannot mint tokens.** The
+ability to impersonate users was deliberately removed when the
+production frontend went live.
+
+Calls that arrive without an `Authorization` header are rejected by
+the tool handler before they hit the API. Public endpoints (currently
+just `list_exercises`) don't require auth.
 
 ## Tools
 
 | Name             | Description                                            |
 | ---------------- | ------------------------------------------------------ |
-| `list_workouts`  | Returns a user's logged workouts (capped at 50, most recent first). Includes nested exercises + sets. |
+| `list_exercises` | Public catalog browse. Optional `muscle_group` and `equipment` filters. |
+| `list_workouts`  | The calling user's logged workouts (capped at 50, most recent first). Identity from `Authorization` header. |
+| `create_workout` | Log a new workout for the calling user. Identity from `Authorization` header. |
 
 ## Local development
 
@@ -33,9 +41,10 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 # install deps (creates .venv and uv.lock)
 uv sync
 
-# copy env template and fill in JWT_SIGNING_KEY (must match the API's value)
+# the server has no secrets to configure; defaults work for local dev.
+# copy the env template only if you want to override PROG_STRENGTH_API_BASE_URL
+# or the bind host/port.
 cp .env.example .env
-$EDITOR .env
 
 # run the server (loads .env automatically if you run via `uv run`)
 uv run prog-strength-mcp
@@ -61,9 +70,10 @@ All config is via environment variables — see `.env.example` for the full list
 | Variable                     | Default                  | Purpose                                                |
 | ---------------------------- | ------------------------ | ------------------------------------------------------ |
 | `PROG_STRENGTH_API_BASE_URL` | `http://localhost:8080`  | Where to proxy tool calls.                             |
-| `JWT_SIGNING_KEY`            | *required*               | HS256 secret. Must match the API.                      |
 | `MCP_HOST`                   | `0.0.0.0`                | Bind address for the streamable-HTTP transport.        |
 | `MCP_PORT`                   | `8000`                   | Bind port.                                             |
+
+No secrets are required — the server holds none.
 
 ## Deployment
 
@@ -75,11 +85,11 @@ docker-compose file; they join a shared external docker network called
 Caddy serves `https://mcp.progstrength.fitness` and terminates TLS — the
 mcp container has no public ports.
 
-**Pipeline:** `.github/workflows/deploy.yml` triggers on every push to
-`main`. It SSHes into the EC2 host, `git pull`s `/home/ubuntu/prog-strength-mcp`,
-writes a fresh `.env` (only `JWT_SIGNING_KEY` — everything else is in
-`docker-compose.yml`), and runs `docker compose up --build -d`. No
-semantic-release for v1.
+**Pipeline:** semantic-release in `.github/workflows/release.yml` tags
+and SSH-deploys on `feat:`/`fix:` commits to `main`. The deploy step
+SSHes into the EC2 host, `git pull`s `/home/ubuntu/prog-strength-mcp`,
+writes a minimal `.env` with just `APP_VERSION`, and runs
+`docker compose up --build -d`. No app secrets to wire in.
 
 **Required GitHub secrets** on this repo:
 
@@ -87,7 +97,6 @@ semantic-release for v1.
 | ----------------- | -------------------------------------------- |
 | `EC2_HOST`        | Same Elastic IP as the api repo.             |
 | `EC2_SSH_KEY`     | Same private key as the api repo.            |
-| `JWT_SIGNING_KEY` | Same HS256 secret the api uses.              |
 
 **Host prerequisites** (handled by the infra repo's bootstrap on fresh
 hosts; do these once on the existing host):
@@ -104,7 +113,9 @@ git clone https://github.com/Prog-Strength/prog-strength-mcp.git \
 src/prog_strength_mcp/
 ├── __init__.py
 ├── __main__.py    # `python -m prog_strength_mcp` and console script entry
-├── server.py      # FastMCP instance + tool registrations + run()
-├── api_client.py  # httpx async wrapper, JWT minting
-└── config.py      # env var loading
+├── server.py      # FastMCP instance + register() calls + run()
+├── workouts.py    # list_workouts + create_workout tools
+├── exercises.py   # list_exercises tool (public)
+├── api_client.py  # httpx async wrapper, header-passthrough only
+└── config.py      # env var loading (no secrets)
 ```

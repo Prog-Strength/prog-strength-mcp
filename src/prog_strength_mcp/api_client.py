@@ -1,8 +1,18 @@
-from datetime import UTC, datetime, timedelta
+"""Transparent forwarder to the Prog Strength API.
+
+This server holds no signing keys. Each method takes an `auth_header`
+string (the literal `Authorization` value, e.g. `Bearer eyJ…`) that the
+caller — the tool handler — pulls off the inbound MCP request and
+passes through. The API decodes the JWT itself and enforces ownership;
+MCP is just plumbing.
+
+Endpoints that don't require auth (e.g. `/exercises`) accept `None`
+and omit the header.
+"""
+
 from typing import Any
 
 import httpx
-import jwt
 
 
 class APIError(RuntimeError):
@@ -14,35 +24,16 @@ class APIError(RuntimeError):
         self.message = message
 
 
-# Match the API's JWTLifetime constant (7d) but mint short-lived tokens here —
-# each tool call gets a fresh one, so there's no reason to issue long-lived
-# credentials from this side. Five minutes is plenty of slack for clock skew
-# and request latency.
-_TOKEN_LIFETIME = timedelta(minutes=5)
-
-
-def _mint_user_token(user_id: str, signing_key: str) -> str:
-    """Issue an HS256 JWT with `sub=user_id`, matching the API's expected shape."""
-    now = datetime.now(UTC)
-    payload = {
-        "sub": user_id,
-        "iat": int(now.timestamp()),
-        "exp": int((now + _TOKEN_LIFETIME).timestamp()),
-    }
-    return jwt.encode(payload, signing_key, algorithm="HS256")
-
-
 class APIClient:
     """Thin async wrapper around the Go Chi API.
 
-    All calls are made on behalf of a specific user — the client mints a
-    per-call JWT signed with the API's signing key. This server is
-    effectively privileged: anything that can call it can read any user's
-    data. Front-door auth on this server is a separate concern.
+    No signing keys, no token minting. Each call carries whichever
+    Authorization header the inbound MCP request had — the agent
+    sources this from the end-user's JWT, so the API sees the same
+    identity it would on a direct browser call.
     """
 
-    def __init__(self, base_url: str, signing_key: str, *, timeout: float = 10.0):
-        self._signing_key = signing_key
+    def __init__(self, base_url: str, *, timeout: float = 10.0):
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
 
     async def aclose(self) -> None:
@@ -54,14 +45,13 @@ class APIClient:
     async def __aexit__(self, *_: Any) -> None:
         await self.aclose()
 
-    async def list_workouts(self, user_id: str) -> list[dict[str, Any]]:
-        """GET /workouts as `user_id`. Returns the workouts list directly,
-        unwrapped from the API's `{service, message, data}` envelope.
+    async def list_workouts(self, auth_header: str) -> list[dict[str, Any]]:
+        """GET /workouts. Returns the workouts list directly, unwrapped
+        from the API's `{service, message, data}` envelope.
         """
-        token = _mint_user_token(user_id, self._signing_key)
         resp = await self._client.get(
             "/workouts",
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
         data = resp.json().get("data")
@@ -73,11 +63,8 @@ class APIClient:
         muscle_group: str | None = None,
         equipment: str | None = None,
     ) -> list[dict[str, Any]]:
-        """GET /exercises with optional filters. Public endpoint — no JWT.
-
-        Returns the shared, admin-curated exercise catalog. The agent needs
-        this to map natural-language exercise names to the slug IDs the
-        API stores in workout logs.
+        """GET /exercises with optional filters. Public endpoint — no
+        auth header is sent or required.
         """
         params: dict[str, str] = {}
         if muscle_group:
@@ -91,7 +78,7 @@ class APIClient:
 
     async def create_workout(
         self,
-        user_id: str,
+        auth_header: str,
         *,
         exercises: list[dict[str, Any]],
         name: str | None = None,
@@ -99,12 +86,11 @@ class APIClient:
         ended_at: str | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
-        """POST /workouts as `user_id`. Body shape mirrors the Go handler's
+        """POST /workouts. Body shape mirrors the Go handler's
         createWorkoutRequest. Omitted fields are left out so the API's
         server-side defaults (name = "Workout - <date>", performed_at = now)
         kick in.
         """
-        token = _mint_user_token(user_id, self._signing_key)
         body: dict[str, Any] = {"exercises": exercises}
         if name is not None:
             body["name"] = name
@@ -118,7 +104,7 @@ class APIClient:
         resp = await self._client.post(
             "/workouts",
             json=body,
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
         data = resp.json().get("data")
