@@ -48,14 +48,23 @@ class APIClient:
     async def list_workouts(self, auth_header: str) -> list[dict[str, Any]]:
         """GET /workouts. Returns the workouts list directly, unwrapped
         from the API's `{service, message, data}` envelope.
+
+        The API's `data` is a pagination wrapper of the shape
+        `{items, total, limit, offset, has_more}`. We surface just
+        `items` to the agent because the tool currently returns a flat
+        list and pagination is a future feature; older clients that
+        kept consuming `data` directly as a list (no longer the case
+        in this repo) would break, but the API and this client deploy
+        together so that drift never lives across a deploy boundary.
         """
         resp = await self._client.get(
             "/workouts",
             headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
-        data = resp.json().get("data")
-        return data if isinstance(data, list) else []
+        data = resp.json().get("data") or {}
+        items = data.get("items") if isinstance(data, dict) else None
+        return items if isinstance(items, list) else []
 
     async def list_exercises(
         self,

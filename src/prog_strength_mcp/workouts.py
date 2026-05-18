@@ -102,9 +102,10 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         scopes the results. There is no user_id parameter — Claude
         cannot fetch another user's data.
 
-        The API caps results at 50 today; pagination is not yet exposed.
-        Each workout includes its exercises and sets (reps, weight, unit),
-        so a single call is enough to summarize recent training.
+        Returns the first page of results (the API's default limit, ~50
+        workouts). Pagination parameters are not exposed to the agent
+        yet — if you need older workouts beyond the first page, that's
+        a future feature on this tool.
         """
         auth = _auth_header_or_raise()
         try:
