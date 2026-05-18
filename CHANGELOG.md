@@ -1,3 +1,10 @@
+## [0.5.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.5.0...v0.5.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **workouts:** unwrap paginated /workouts response envelope ([d40246b](https://github.com/Prog-Strength/prog-strength-mcp/commit/d40246b3515ee3ea8646e7561195624c186c640d))
+
 # [0.5.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.4.0...v0.5.0) (2026-05-17)
 
 
