@@ -69,17 +69,30 @@ jobs:
             # full rationale on why this matters with appleboy/ssh-action.
             set -e
 
-            cd /home/ubuntu/prog-strength-mcp
-            git fetch --tags --prune
-            git checkout "v${RELEASE_VERSION}"
+            # The mcp compose file lives in prog-strength-infra now; the
+            # mcp repo isn't checked out on the host. The image at this
+            # tag must already exist in ECR — manual deploys don't build.
+            cd /home/ubuntu/prog-strength-infra
+            git fetch --prune
+            git checkout main
+            git pull --ff-only
+
+            cd compose/mcp
+
+            # ECR login via the instance role (see release.yml).
+            ECR_REGISTRY="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-2.amazonaws.com"
+            aws ecr get-login-password --region us-east-2 \
+              | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
             umask 077
             cat > .env <<EOF
             APP_VERSION=v${RELEASE_VERSION}
+            ECR_REGISTRY=${ECR_REGISTRY}
             EOF
 
+            docker compose pull mcp
             docker compose down
-            docker compose up --build -d
+            docker compose up -d
 
             echo "Deployed v${RELEASE_VERSION}"
             docker compose ps
