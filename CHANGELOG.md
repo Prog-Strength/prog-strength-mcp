@@ -1,3 +1,10 @@
+## [0.6.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.6.0...v0.6.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* **build:** build image on a native ARM runner ([f8808eb](https://github.com/Prog-Strength/prog-strength-mcp/commit/f8808eb881e72d69c242cfc49811db3f8093ac92))
+
 # [0.6.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.5.1...v0.6.0) (2026-05-19)
 
 
