@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.5.1...v0.6.0) (2026-05-19)
+
+
+### Features
+
+* **build:** publish MCP image to ECR and pull from it on deploy ([68eb395](https://github.com/Prog-Strength/prog-strength-mcp/commit/68eb39597cc1621d4ad03e7139620665d8cef2b2))
+
 ## [0.5.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.5.0...v0.5.1) (2026-05-18)
 
 
