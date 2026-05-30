@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.7.0...v0.8.0) (2026-05-30)
+
+
+### Features
+
+* **nutrition:** recipe tools + recipe-aware log_consumption (Phase 2) ([8e1de20](https://github.com/Prog-Strength/prog-strength-mcp/commit/8e1de20537db7d55d2e66e5bb1c3a57f77d74a94))
+
 # [0.7.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.6.1...v0.7.0) (2026-05-30)
 
 
