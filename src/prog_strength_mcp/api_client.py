@@ -175,17 +175,19 @@ class APIClient:
         self,
         auth_header: str,
         *,
-        pantry_item_id: str,
+        pantry_item_id: str | None = None,
+        recipe_id: str | None = None,
         quantity: float,
         consumed_at: str | None = None,
     ) -> dict[str, Any]:
-        """POST /nutrition-log. Phase 1 supports pantry-item-backed
-        entries only — recipes ship in a later phase.
+        """POST /nutrition-log. Pass exactly one of pantry_item_id or
+        recipe_id — the API rejects "neither" and "both."
         """
-        body: dict[str, Any] = {
-            "pantry_item_id": pantry_item_id,
-            "quantity": quantity,
-        }
+        body: dict[str, Any] = {"quantity": quantity}
+        if pantry_item_id is not None:
+            body["pantry_item_id"] = pantry_item_id
+        if recipe_id is not None:
+            body["recipe_id"] = recipe_id
         if consumed_at is not None:
             body["consumed_at"] = consumed_at
         resp = await self._client.post(
@@ -218,6 +220,40 @@ class APIClient:
         _raise_for_status(resp)
         data = resp.json().get("data")
         return data if isinstance(data, list) else []
+
+    # --- Recipes -----------------------------------------------------
+
+    async def list_recipes(self, auth_header: str) -> list[dict[str, Any]]:
+        """GET /recipes. Returns recipes with components + derived
+        macros inlined so the agent doesn't have to N+1 lookup.
+        """
+        resp = await self._client.get(
+            "/recipes",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
+    async def create_recipe(
+        self,
+        auth_header: str,
+        *,
+        name: str,
+        components: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """POST /recipes. `components` is a list of
+        {pantry_item_id, quantity} dicts in display order.
+        """
+        body = {"name": name, "components": components}
+        resp = await self._client.post(
+            "/recipes",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
 
     async def get_daily_macros(
         self,

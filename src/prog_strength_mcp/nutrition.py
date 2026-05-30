@@ -35,29 +35,39 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
     @mcp.tool
     async def log_consumption(
-        pantry_item_id: Annotated[
-            str,
-            Field(
-                min_length=1,
-                description=(
-                    "ID of a saved pantry item. Get one from list_pantry_items "
-                    "or from a fresh create_pantry_item call. Recipes will be "
-                    "supported in a later phase; for now every log entry is "
-                    "pantry-item-backed."
-                ),
-            ),
-        ],
         quantity: Annotated[
             float,
             Field(
                 gt=0,
                 description=(
-                    "How many servings of the pantry item the user ate. "
-                    "Multiplied through the per-serving macros — '5 eggs' "
-                    "with a 1-egg pantry item is quantity=5."
+                    "How many servings (for a pantry item) or batches (for "
+                    "a recipe) the user ate. Multiplied through the source's "
+                    "per-serving macros — '5 eggs' with a 1-egg pantry item "
+                    "is quantity=5; 'half a recipe' is quantity=0.5."
                 ),
             ),
         ],
+        pantry_item_id: Annotated[
+            str | None,
+            Field(
+                default=None,
+                description=(
+                    "ID of a saved pantry item. Pass exactly one of "
+                    "pantry_item_id or recipe_id."
+                ),
+            ),
+        ] = None,
+        recipe_id: Annotated[
+            str | None,
+            Field(
+                default=None,
+                description=(
+                    "ID of a saved recipe. Pass exactly one of pantry_item_id "
+                    "or recipe_id. When the user says 'my usual breakfast' "
+                    "and you've matched it to a recipe, pass that recipe's ID."
+                ),
+            ),
+        ] = None,
         consumed_at: Annotated[
             str | None,
             Field(
@@ -69,18 +79,22 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             ),
         ] = None,
     ) -> dict[str, Any]:
-        """Log a single consumption event against a pantry item.
+        """Log a single consumption event against a pantry item or recipe.
 
-        Returns the created log entry with denormalized macros
-        (quantity × the pantry item's per-serving macros) frozen at log
-        time — a future edit to the pantry item will not retroactively
-        change this entry's totals.
+        Returns the created log entry with denormalized macros frozen
+        at log time — a future edit to the pantry item or recipe will
+        not retroactively change this entry's totals.
         """
+        if (pantry_item_id is None) == (recipe_id is None):
+            raise RuntimeError(
+                "log_consumption requires exactly one of pantry_item_id or recipe_id."
+            )
         auth = _auth_header_or_raise()
         try:
             return await api.log_consumption(
                 auth,
                 pantry_item_id=pantry_item_id,
+                recipe_id=recipe_id,
                 quantity=quantity,
                 consumed_at=consumed_at,
             )
