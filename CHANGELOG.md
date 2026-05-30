@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.6.1...v0.7.0) (2026-05-30)
+
+
+### Features
+
+* **nutrition:** pantry + nutrition log MCP tools (Phase 1) ([c0324f6](https://github.com/Prog-Strength/prog-strength-mcp/commit/c0324f66ef223e9ba0f2f53265bf1960a0579468))
+
 ## [0.6.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.6.0...v0.6.1) (2026-05-19)
 
 
