@@ -178,12 +178,15 @@ class APIClient:
         pantry_item_id: str | None = None,
         recipe_id: str | None = None,
         quantity: float,
+        meal: str,
         consumed_at: str | None = None,
     ) -> dict[str, Any]:
         """POST /nutrition-log. Pass exactly one of pantry_item_id or
-        recipe_id — the API rejects "neither" and "both."
+        recipe_id — the API rejects "neither" and "both." `meal` is
+        required server-side (one of "breakfast", "lunch", "dinner",
+        "snack") so the UI can group entries into per-meal sections.
         """
-        body: dict[str, Any] = {"quantity": quantity}
+        body: dict[str, Any] = {"quantity": quantity, "meal": meal}
         if pantry_item_id is not None:
             body["pantry_item_id"] = pantry_item_id
         if recipe_id is not None:

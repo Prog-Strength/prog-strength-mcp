@@ -7,7 +7,7 @@ and get_daily_macros. Recipe-based logging and bodyweight live in
 later phases. See prog-strength-docs/sows/daily-nutrition-log.md.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
@@ -44,6 +44,18 @@ def register(mcp: FastMCP, api: APIClient) -> None:
                     "a recipe) the user ate. Multiplied through the source's "
                     "per-serving macros — '5 eggs' with a 1-egg pantry item "
                     "is quantity=5; 'half a recipe' is quantity=0.5."
+                ),
+            ),
+        ],
+        meal: Annotated[
+            Literal["breakfast", "lunch", "dinner", "snack"],
+            Field(
+                description=(
+                    "Which meal bucket the entry rolls into on the user's "
+                    "nutrition page. Pick from explicit cues in the user's "
+                    "message ('for breakfast I had…' → breakfast), the time "
+                    "of day implied by context, or default to 'snack' for "
+                    "off-meal foods like coffee, fruit, or a protein bar."
                 ),
             ),
         ],
@@ -96,6 +108,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
                 pantry_item_id=pantry_item_id,
                 recipe_id=recipe_id,
                 quantity=quantity,
+                meal=meal,
                 consumed_at=consumed_at,
             )
         except APIError as e:
