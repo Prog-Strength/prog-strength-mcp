@@ -120,6 +120,125 @@ class APIClient:
         return data if isinstance(data, dict) else {}
 
 
+    # --- Pantry items ------------------------------------------------
+
+    async def list_pantry_items(
+        self, auth_header: str, *, query: str | None = None
+    ) -> list[dict[str, Any]]:
+        """GET /pantry-items. Optional substring filter on name."""
+        params: dict[str, str] = {}
+        if query:
+            params["q"] = query
+        resp = await self._client.get(
+            "/pantry-items",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
+    async def create_pantry_item(
+        self,
+        auth_header: str,
+        *,
+        name: str,
+        calories: float,
+        protein_g: float,
+        fat_g: float,
+        carbs_g: float,
+        serving_size: float,
+        serving_unit: str,
+    ) -> dict[str, Any]:
+        """POST /pantry-items. Macros are per-serving."""
+        body = {
+            "name": name,
+            "calories": calories,
+            "protein_g": protein_g,
+            "fat_g": fat_g,
+            "carbs_g": carbs_g,
+            "serving_size": serving_size,
+            "serving_unit": serving_unit,
+        }
+        resp = await self._client.post(
+            "/pantry-items",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    # --- Nutrition log -----------------------------------------------
+
+    async def log_consumption(
+        self,
+        auth_header: str,
+        *,
+        pantry_item_id: str,
+        quantity: float,
+        consumed_at: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /nutrition-log. Phase 1 supports pantry-item-backed
+        entries only — recipes ship in a later phase.
+        """
+        body: dict[str, Any] = {
+            "pantry_item_id": pantry_item_id,
+            "quantity": quantity,
+        }
+        if consumed_at is not None:
+            body["consumed_at"] = consumed_at
+        resp = await self._client.post(
+            "/nutrition-log",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def list_nutrition_log(
+        self,
+        auth_header: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """GET /nutrition-log. RFC3339 since/until bound consumed_at."""
+        params: dict[str, str] = {}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        resp = await self._client.get(
+            "/nutrition-log",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
+    async def get_daily_macros(
+        self,
+        auth_header: str,
+        *,
+        since: str,
+        until: str,
+    ) -> list[dict[str, Any]]:
+        """GET /nutrition-log/daily. Returns per-day totals for the
+        [since, until) UTC range. Both bounds are required.
+        """
+        resp = await self._client.get(
+            "/nutrition-log/daily",
+            params={"since": since, "until": until},
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Convert a non-2xx API response into APIError, pulling the `error`
     field out of the standard `{service, error}` envelope when present.
