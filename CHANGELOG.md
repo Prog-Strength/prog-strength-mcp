@@ -1,3 +1,10 @@
+# [0.9.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.8.0...v0.9.0) (2026-05-30)
+
+
+### Features
+
+* **bodyweight:** MCP tools for logging readings + listing history (Phase 3) ([597dda8](https://github.com/Prog-Strength/prog-strength-mcp/commit/597dda850e1de24d06fbde65a5774af9f39e8e11))
+
 # [0.8.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.7.0...v0.8.0) (2026-05-30)
 
 
