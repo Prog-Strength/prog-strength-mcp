@@ -1,3 +1,10 @@
+# [0.10.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.9.0...v0.10.0) (2026-05-30)
+
+
+### Features
+
+* **nutrition:** log_consumption now requires meal ([972db18](https://github.com/Prog-Strength/prog-strength-mcp/commit/972db18c8f5f828f5c12d44fe8e36fdc7af181c9))
+
 # [0.9.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.8.0...v0.9.0) (2026-05-30)
 
 
