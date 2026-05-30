@@ -2,7 +2,14 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from prog_strength_mcp import exercises, nutrition, pantry, recipes, workouts
+from prog_strength_mcp import (
+    bodyweight,
+    exercises,
+    nutrition,
+    pantry,
+    recipes,
+    workouts,
+)
 from prog_strength_mcp.api_client import APIClient
 from prog_strength_mcp.config import Config
 from prog_strength_mcp.version import SERVICE, VERSION
@@ -25,6 +32,7 @@ exercises.register(mcp, api)
 pantry.register(mcp, api)
 recipes.register(mcp, api)
 nutrition.register(mcp, api)
+bodyweight.register(mcp, api)
 
 
 @mcp.custom_route("/health", methods=["GET"])

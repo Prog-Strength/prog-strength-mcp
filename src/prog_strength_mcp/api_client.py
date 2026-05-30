@@ -221,6 +221,55 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, list) else []
 
+    # --- Bodyweight --------------------------------------------------
+
+    async def log_bodyweight(
+        self,
+        auth_header: str,
+        *,
+        weight: float,
+        unit: str | None = None,
+        measured_at: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /bodyweight. Unit omitted defaults to the user's
+        preferred WeightUnit server-side.
+        """
+        body: dict[str, Any] = {"weight": weight}
+        if unit is not None:
+            body["unit"] = unit
+        if measured_at is not None:
+            body["measured_at"] = measured_at
+        resp = await self._client.post(
+            "/bodyweight",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def list_bodyweight(
+        self,
+        auth_header: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """GET /bodyweight. since/until are RFC3339 bounds on measured_at."""
+        params: dict[str, str] = {}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        resp = await self._client.get(
+            "/bodyweight",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
     # --- Recipes -----------------------------------------------------
 
     async def list_recipes(self, auth_header: str) -> list[dict[str, Any]]:
