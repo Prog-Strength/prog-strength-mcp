@@ -1,3 +1,10 @@
+# [0.11.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.10.0...v0.11.0) (2026-05-31)
+
+
+### Features
+
+* **nutrition:** MCP tools for daily macro goals ([084f28d](https://github.com/Prog-Strength/prog-strength-mcp/commit/084f28d9b5f80a358b32fb206445234e0919b4d7))
+
 # [0.10.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.9.0...v0.10.0) (2026-05-30)
 
 
