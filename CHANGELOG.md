@@ -1,3 +1,10 @@
+## [0.11.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.11.0...v0.11.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* **deploy:** write AWS_REGION to .env so awslogs driver finds the right region ([b0d3384](https://github.com/Prog-Strength/prog-strength-mcp/commit/b0d3384794eb16a68e3f2bd2a834a11675371e8f))
+
 # [0.11.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.10.0...v0.11.0) (2026-05-31)
 
 
