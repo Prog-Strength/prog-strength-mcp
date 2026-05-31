@@ -129,6 +129,7 @@ jobs:
             # comes from the agent's per-request Authorization header.
             umask 077
             cat > .env <<EOF
+            AWS_REGION=us-east-2
             APP_VERSION=v${RELEASE_VERSION}
             ECR_REGISTRY=${ECR_REGISTRY}
             EOF
