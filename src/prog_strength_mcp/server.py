@@ -5,6 +5,7 @@ from starlette.responses import JSONResponse
 from prog_strength_mcp import (
     bodyweight,
     exercises,
+    macro_goals,
     nutrition,
     pantry,
     recipes,
@@ -33,6 +34,7 @@ pantry.register(mcp, api)
 recipes.register(mcp, api)
 nutrition.register(mcp, api)
 bodyweight.register(mcp, api)
+macro_goals.register(mcp, api)
 
 
 @mcp.custom_route("/health", methods=["GET"])

@@ -326,6 +326,48 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, list) else []
 
+    async def get_macro_goals(self, auth_header: str) -> dict[str, Any]:
+        """GET /me/macro-goals. Always returns 200 — the "never set"
+        state surfaces as a row of zeros with null created_at /
+        updated_at, and callers (the MCP tool, the agent) treat that
+        as "the user hasn't set goals yet."
+        """
+        resp = await self._client.get(
+            "/me/macro-goals",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def put_macro_goals(
+        self,
+        auth_header: str,
+        *,
+        protein_g: int,
+        carbs_g: int,
+        fat_g: int,
+        calories: int,
+    ) -> dict[str, Any]:
+        """PUT /me/macro-goals. Set-replacement: all four numbers
+        required, the API rejects partial bodies with 400. Returns the
+        persisted goals row.
+        """
+        body = {
+            "protein_g": protein_g,
+            "carbs_g": carbs_g,
+            "fat_g": fat_g,
+            "calories": calories,
+        }
+        resp = await self._client.put(
+            "/me/macro-goals",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
 
 def _raise_for_status(resp: httpx.Response) -> None:
     """Convert a non-2xx API response into APIError, pulling the `error`
