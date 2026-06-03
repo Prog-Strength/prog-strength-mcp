@@ -206,15 +206,23 @@ class APIClient:
         self,
         auth_header: str,
         *,
-        since: str | None = None,
-        until: str | None = None,
+        timezone: str,
+        date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        """GET /nutrition-log. RFC3339 since/until bound consumed_at."""
-        params: dict[str, str] = {}
-        if since:
-            params["since"] = since
-        if until:
-            params["until"] = until
+        """GET /nutrition-log. `timezone` is an IANA name the date params
+        are interpreted in. Pass either `date` (single day) or
+        `start_date`+`end_date` (range), all YYYY-MM-DD; the API validates
+        the one-of constraint.
+        """
+        params: dict[str, str] = {"timezone": timezone}
+        if date:
+            params["date"] = date
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
         resp = await self._client.get(
             "/nutrition-log",
             params=params,
@@ -311,15 +319,26 @@ class APIClient:
         self,
         auth_header: str,
         *,
-        since: str,
-        until: str,
+        timezone: str,
+        date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        """GET /nutrition-log/daily. Returns per-day totals for the
-        [since, until) UTC range. Both bounds are required.
+        """GET /nutrition-log/daily. Returns per-day totals, one row per
+        user-local calendar date in `timezone` (an IANA name). Pass either
+        `date` (single day) or `start_date`+`end_date` (range), all
+        YYYY-MM-DD; the API validates the one-of constraint.
         """
+        params: dict[str, str] = {"timezone": timezone}
+        if date:
+            params["date"] = date
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
         resp = await self._client.get(
             "/nutrition-log/daily",
-            params={"since": since, "until": until},
+            params=params,
             headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
