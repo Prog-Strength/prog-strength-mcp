@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.11.1...v0.12.0) (2026-06-03)
+
+
+### Features
+
+* **mcp:** timezone-aware nutrition tool contract ([#1](https://github.com/Prog-Strength/prog-strength-mcp/issues/1)) ([7918334](https://github.com/Prog-Strength/prog-strength-mcp/commit/7918334977aca0dbd7daa3c7db80dd8f9f6cd332))
+
 ## [0.11.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.11.0...v0.11.1) (2026-05-31)
 
 
