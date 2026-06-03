@@ -116,23 +116,42 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
     @mcp.tool
     async def list_nutrition_log(
-        since: Annotated[
+        timezone: Annotated[
+            str,
+            Field(
+                description=(
+                    "IANA timezone (e.g. America/Denver) the date params "
+                    "are interpreted in."
+                ),
+            ),
+        ],
+        date: Annotated[
             str | None,
             Field(
                 default=None,
                 description=(
-                    "RFC3339 UTC lower bound on consumed_at (inclusive). "
-                    "Omit for no lower bound."
+                    "Single calendar day, YYYY-MM-DD. Mutually exclusive "
+                    "with start_date/end_date."
                 ),
             ),
         ] = None,
-        until: Annotated[
+        start_date: Annotated[
             str | None,
             Field(
                 default=None,
                 description=(
-                    "RFC3339 UTC upper bound on consumed_at (exclusive). "
-                    "Omit for no upper bound."
+                    "Inclusive start of a multi-day range, YYYY-MM-DD. "
+                    "Required if end_date is supplied."
+                ),
+            ),
+        ] = None,
+        end_date: Annotated[
+            str | None,
+            Field(
+                default=None,
+                description=(
+                    "Inclusive end of a multi-day range, YYYY-MM-DD. "
+                    "Required if start_date is supplied."
                 ),
             ),
         ] = None,
@@ -140,43 +159,94 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         """List the user's nutrition log entries, most recent first.
 
         Each entry carries denormalized macros and a reference to the
-        source pantry item. For a per-day rollup over a range, prefer
-        get_daily_macros — it does the aggregation server-side and
-        skips the per-entry round trip.
+        source pantry item. Dates are interpreted in the supplied IANA
+        `timezone`; pass either `date` for a single day or
+        `start_date`+`end_date` for a range (the API validates that
+        exactly one shape is supplied).
+
+        For totals over a day or a range, use get_daily_macros — it
+        returns sums computed by the API. Do not list entries and sum
+        macros yourself; arithmetic across many items is unreliable.
         """
         auth = _auth_header_or_raise()
+        if not timezone:
+            raise RuntimeError(
+                "list_nutrition_log requires a timezone (IANA name like America/Denver)."
+            )
         try:
-            return await api.list_nutrition_log(auth, since=since, until=until)
+            return await api.list_nutrition_log(
+                auth,
+                timezone=timezone,
+                date=date,
+                start_date=start_date,
+                end_date=end_date,
+            )
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
 
     @mcp.tool
     async def get_daily_macros(
-        since: Annotated[
+        timezone: Annotated[
             str,
             Field(
                 description=(
-                    "RFC3339 UTC lower bound on the date range (inclusive)."
+                    "IANA timezone (e.g. America/Denver) the date params "
+                    "are interpreted in."
                 ),
             ),
         ],
-        until: Annotated[
-            str,
+        date: Annotated[
+            str | None,
             Field(
+                default=None,
                 description=(
-                    "RFC3339 UTC upper bound on the date range (exclusive)."
+                    "Single calendar day, YYYY-MM-DD. Mutually exclusive "
+                    "with start_date/end_date."
                 ),
             ),
-        ],
+        ] = None,
+        start_date: Annotated[
+            str | None,
+            Field(
+                default=None,
+                description=(
+                    "Inclusive start of a multi-day range, YYYY-MM-DD. "
+                    "Required if end_date is supplied."
+                ),
+            ),
+        ] = None,
+        end_date: Annotated[
+            str | None,
+            Field(
+                default=None,
+                description=(
+                    "Inclusive end of a multi-day range, YYYY-MM-DD. "
+                    "Required if start_date is supplied."
+                ),
+            ),
+        ] = None,
     ) -> list[dict[str, Any]]:
-        """Per-day totals over a date range — one row per UTC date.
+        """Per-day macro totals, one row per user-local calendar date in
+        the supplied IANA `timezone`.
 
-        Use this for "how did my macros look this week?" prompts.
+        Use this for "how did my macros look this week?" prompts. Pass
+        exactly one of `date` (single day) or `start_date`+`end_date`
+        (range), all YYYY-MM-DD — the API validates the one-of constraint.
         Empty days do not appear in the response; fill gaps client-side
         only if you need a dense series for comparison.
         """
         auth = _auth_header_or_raise()
+        if not timezone:
+            raise RuntimeError(
+                "get_daily_macros requires a timezone (IANA name like America/Denver)."
+            )
         try:
-            return await api.get_daily_macros(auth, since=since, until=until)
+            return await api.get_daily_macros(
+                auth,
+                timezone=timezone,
+                date=date,
+                start_date=start_date,
+                end_date=end_date,
+            )
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
