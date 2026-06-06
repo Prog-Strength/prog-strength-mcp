@@ -1,3 +1,10 @@
+# [0.13.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.12.0...v0.13.0) (2026-06-06)
+
+
+### Features
+
+* **mcp:** log_custom_meal tool wrapping POST /nutrition-log/custom ([#2](https://github.com/Prog-Strength/prog-strength-mcp/issues/2)) ([f6a45ba](https://github.com/Prog-Strength/prog-strength-mcp/commit/f6a45badfa0773de8c15ee65e2fa298b7077eab5))
+
 # [0.12.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.11.1...v0.12.0) (2026-06-03)
 
 
