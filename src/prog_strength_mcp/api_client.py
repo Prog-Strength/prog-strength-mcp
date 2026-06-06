@@ -202,6 +202,42 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    async def log_custom_meal(
+        self,
+        auth_header: str,
+        *,
+        name: str,
+        calories: float,
+        protein_g: float,
+        fat_g: float,
+        carbs_g: float,
+        meal: str,
+        consumed_at: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /nutrition-log/custom. Logs a one-off meal the user typed,
+        not backed by a pantry item or recipe. The four macros and `name`
+        are stored as-typed; `meal` is required server-side (one of
+        "breakfast", "lunch", "dinner", "snack").
+        """
+        body: dict[str, Any] = {
+            "name": name,
+            "calories": calories,
+            "protein_g": protein_g,
+            "fat_g": fat_g,
+            "carbs_g": carbs_g,
+            "meal": meal,
+        }
+        if consumed_at is not None:
+            body["consumed_at"] = consumed_at
+        resp = await self._client.post(
+            "/nutrition-log/custom",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
     async def list_nutrition_log(
         self,
         auth_header: str,
