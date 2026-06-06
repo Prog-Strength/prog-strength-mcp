@@ -115,6 +115,65 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
 
     @mcp.tool
+    async def log_custom_meal(
+        name: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description=(
+                    "What the user ate. Free-form text the user types or you "
+                    'extract from their message — "Chipotle chicken bowl", '
+                    '"Sweetgreen Harvest Bowl", "airport protein bar". '
+                    "Stored as-is on the log entry; appears in the user's "
+                    "nutrition log under that exact name."
+                ),
+            ),
+        ],
+        calories: Annotated[
+            float,
+            Field(ge=0, le=100_000, description="Total calories for the meal as the user ate it."),
+        ],
+        protein_g: Annotated[float, Field(ge=0, le=10_000, description="Total protein in grams.")],
+        fat_g: Annotated[float, Field(ge=0, le=10_000, description="Total fat in grams.")],
+        carbs_g: Annotated[
+            float, Field(ge=0, le=10_000, description="Total carbohydrates in grams.")
+        ],
+        meal: Annotated[
+            Literal["breakfast", "lunch", "dinner", "snack"],
+            Field(description="Meal bucket on the user's nutrition page."),
+        ],
+        consumed_at: Annotated[
+            str | None,
+            Field(default=None, description="RFC3339 UTC timestamp; omit for now."),
+        ] = None,
+    ) -> dict[str, Any]:
+        """Log a one-off meal that isn't backed by a pantry item or recipe.
+
+        Use this when the user describes eating something they don't have
+        saved — restaurant meals, foods bought outside, anything one-off.
+        Always check `list_pantry_items` first; if there's a match, use
+        `log_consumption` against that match instead.
+
+        Returns the created log entry with the user-typed name and macros
+        frozen on the row.
+        """
+        auth = _auth_header_or_raise()
+        try:
+            return await api.log_custom_meal(
+                auth,
+                name=name,
+                calories=calories,
+                protein_g=protein_g,
+                fat_g=fat_g,
+                carbs_g=carbs_g,
+                meal=meal,
+                consumed_at=consumed_at,
+            )
+        except APIError as e:
+            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+
+    @mcp.tool
     async def list_nutrition_log(
         timezone: Annotated[
             str,
