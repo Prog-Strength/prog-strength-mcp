@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.13.0...v0.14.0) (2026-06-10)
+
+
+### Features
+
+* **running:** get_running_best_efforts MCP tool proxying GET /running/best-efforts ([#3](https://github.com/Prog-Strength/prog-strength-mcp/issues/3)) ([b959d86](https://github.com/Prog-Strength/prog-strength-mcp/commit/b959d865d4f297bfe9f49f1ae06e515810a0e2c7))
+
 # [0.13.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.12.0...v0.13.0) (2026-06-06)
 
 
