@@ -9,6 +9,7 @@ from prog_strength_mcp import (
     nutrition,
     pantry,
     recipes,
+    running,
     workouts,
 )
 from prog_strength_mcp.api_client import APIClient
@@ -32,6 +33,7 @@ workouts.register(mcp, api)
 exercises.register(mcp, api)
 pantry.register(mcp, api)
 recipes.register(mcp, api)
+running.register(mcp, api)
 nutrition.register(mcp, api)
 bodyweight.register(mcp, api)
 macro_goals.register(mcp, api)
