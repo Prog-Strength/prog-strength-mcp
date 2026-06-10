@@ -423,6 +423,21 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    # --- Running -----------------------------------------------------
+
+    async def list_running_best_efforts(self, auth_header: str) -> dict[str, Any]:
+        """GET /running/best-efforts. Returns the `{best_efforts: [...]}`
+        dict under the API's `data` envelope — the calling user's current
+        best time across each standard running distance.
+        """
+        resp = await self._client.get(
+            "/running/best-efforts",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
 
 def _raise_for_status(resp: httpx.Response) -> None:
     """Convert a non-2xx API response into APIError, pulling the `error`
