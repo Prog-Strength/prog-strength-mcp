@@ -92,11 +92,18 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           RELEASE_VERSION: ${{ needs.release.outputs.new_release_version }}
+          # Nutrition lookup providers (lookup_food_nutrition). All
+          # optional — missing secrets deploy as empty strings and the
+          # tool degrades to "lookup_unavailable". See
+          # prog-strength-docs/sows/custom-meal-macro-accuracy.md.
+          FATSECRET_CLIENT_ID: ${{ secrets.FATSECRET_CLIENT_ID }}
+          FATSECRET_CLIENT_SECRET: ${{ secrets.FATSECRET_CLIENT_SECRET }}
+          USDA_FDC_API_KEY: ${{ secrets.USDA_FDC_API_KEY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: RELEASE_VERSION
+          envs: RELEASE_VERSION,FATSECRET_CLIENT_ID,FATSECRET_CLIENT_SECRET,USDA_FDC_API_KEY
           script: |
             # Abort on the first failing command. Without this, a failed
             # docker compose call is followed by trailing `ps`/`logs`
@@ -124,14 +131,18 @@ jobs:
 
             # APP_VERSION flows into the container's environment and is
             # read at runtime by prog_strength_mcp.version. ECR_REGISTRY
-            # resolves the image: line in docker-compose.yml. As of the
-            # JWT-forwarding refactor this server holds no secrets — auth
-            # comes from the agent's per-request Authorization header.
+            # resolves the image: line in docker-compose.yml. User auth
+            # still forwards per-request from the agent; the FatSecret/
+            # USDA keys below are service credentials for the external
+            # nutrition lookup providers, not user secrets.
             umask 077
             cat > .env <<EOF
             AWS_REGION=us-east-2
             APP_VERSION=v${RELEASE_VERSION}
             ECR_REGISTRY=${ECR_REGISTRY}
+            FATSECRET_CLIENT_ID=${FATSECRET_CLIENT_ID}
+            FATSECRET_CLIENT_SECRET=${FATSECRET_CLIENT_SECRET}
+            USDA_FDC_API_KEY=${USDA_FDC_API_KEY}
             EOF
 
             # Pull the released image up-front so a missing/broken push
