@@ -7,6 +7,7 @@ from prog_strength_mcp import (
     exercises,
     macro_goals,
     nutrition,
+    nutrition_lookup,
     pantry,
     recipes,
     running,
@@ -35,6 +36,7 @@ pantry.register(mcp, api)
 recipes.register(mcp, api)
 running.register(mcp, api)
 nutrition.register(mcp, api)
+nutrition_lookup.register(mcp, api)
 bodyweight.register(mcp, api)
 macro_goals.register(mcp, api)
 
