@@ -50,7 +50,11 @@ MATCHES_PAYLOAD = {
 @respx.mock
 async def test_lookup_forwards_params_and_auth():
     route = respx.get(f"{BASE_URL}/nutrition/lookup").mock(
-        return_value=httpx.Response(200, json={"data": MATCHES_PAYLOAD})
+        return_value=httpx.Response(
+            200,
+            json={"data": MATCHES_PAYLOAD},
+            headers={"X-Request-ID": "req-lookup-1"},
+        )
     )
     async with APIClient(base_url=BASE_URL) as api:
         result = await api.lookup_food_nutrition(
@@ -65,7 +69,8 @@ async def test_lookup_forwards_params_and_auth():
         "quantity": "10",
         "max_results": "3",
     }
-    assert result == MATCHES_PAYLOAD
+    # The API's correlation id rides along for CloudWatch tracing.
+    assert result == {**MATCHES_PAYLOAD, "request_id": "req-lookup-1"}
 
 
 @respx.mock
@@ -82,7 +87,7 @@ async def test_lookup_defaults_quantity_and_max_results():
 
 
 @respx.mock
-async def test_lookup_raises_apierror_with_envelope_detail():
+async def test_lookup_raises_apierror_with_envelope_detail_and_request_id():
     respx.get(f"{BASE_URL}/nutrition/lookup").mock(
         return_value=httpx.Response(
             503,
@@ -90,6 +95,7 @@ async def test_lookup_raises_apierror_with_envelope_detail():
                 "service": "api",
                 "error": "lookup_unavailable: no nutrition data providers configured",
             },
+            headers={"X-Request-ID": "req-failed-1"},
         )
     )
     async with APIClient(base_url=BASE_URL) as api:
@@ -97,6 +103,8 @@ async def test_lookup_raises_apierror_with_envelope_detail():
             await api.lookup_food_nutrition(AUTH, query="eggs")
     assert exc.value.status_code == 503
     assert exc.value.message.startswith("lookup_unavailable")
+    # Failures are traceable too.
+    assert exc.value.request_id == "req-failed-1"
 
 
 # --- tool boundary -----------------------------------------------------
@@ -182,12 +190,21 @@ async def test_tool_requires_auth_header(monkeypatch):
     ],
 )
 async def test_tool_adapts_503_into_structured_error(monkeypatch, message, kind, detail):
-    api = _FakeAPI(error=APIError(503, message))
+    api = _FakeAPI(error=APIError(503, message, request_id="req-err-7"))
     fn = await _tool_fn(monkeypatch, api)
 
     result = await fn(query="eggs")
 
-    assert result == {"error": kind, "detail": detail}
+    assert result == {"error": kind, "detail": detail, "request_id": "req-err-7"}
+
+
+async def test_tool_omits_request_id_when_absent_on_error(monkeypatch):
+    api = _FakeAPI(error=APIError(503, "lookup_failed: boom"))
+    fn = await _tool_fn(monkeypatch, api)
+
+    result = await fn(query="eggs")
+
+    assert result == {"error": "lookup_failed", "detail": "boom"}
 
 
 async def test_tool_reraises_non_503_api_errors(monkeypatch):

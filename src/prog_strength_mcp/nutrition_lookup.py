@@ -76,7 +76,9 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         Use this BEFORE estimating macros for any custom meal that isn't
         in the user's pantry. Returns {"matches": [...]} where each match
         has per_serving and total_for_quantity macro blocks, a
-        serving_description, and a `source` to cite. Prefer an exact
+        serving_description, and a `source` to cite. The response's
+        `request_id` is operational tracing metadata — never read it
+        aloud to the user. Prefer an exact
         brand/chain match without a plausibility_warning; a match with
         "stale": true came from an expired cache because the data sources
         were unreachable — usable, but say the numbers may be dated.
@@ -100,5 +102,8 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             # degraded lookup is an expected state, not a failure.
             if e.status_code == 503:
                 kind, _, detail = e.message.partition(":")
-                return {"error": kind.strip(), "detail": detail.strip()}
+                out = {"error": kind.strip(), "detail": detail.strip()}
+                if e.request_id:
+                    out["request_id"] = e.request_id
+                return out
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
