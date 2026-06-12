@@ -1,3 +1,10 @@
+# [0.15.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.14.0...v0.15.0) (2026-06-12)
+
+
+### Features
+
+* lookup_food_nutrition forwarder tool ([#4](https://github.com/Prog-Strength/prog-strength-mcp/issues/4)) ([98ccda8](https://github.com/Prog-Strength/prog-strength-mcp/commit/98ccda8d4b8017591da485849e9513cd4e71495f)), closes [prog-strength-docs#37](https://github.com/prog-strength-docs/issues/37)
+
 # [0.14.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.13.0...v0.14.0) (2026-06-10)
 
 
