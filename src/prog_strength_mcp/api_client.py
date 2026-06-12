@@ -238,6 +238,34 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    async def lookup_food_nutrition(
+        self,
+        auth_header: str,
+        *,
+        query: str,
+        quantity: float = 1,
+        max_results: int = 5,
+    ) -> dict[str, Any]:
+        """GET /nutrition/lookup. The API owns the external-provider
+        integration (FatSecret, USDA FDC) and the durable cache; this
+        client just forwards. Returns the `{matches, quantity}` dict.
+        A 503 (providers unconfigured or all down) raises APIError like
+        every other endpoint — the tool layer adapts it into the
+        structured error dict the agent prompt expects.
+        """
+        resp = await self._client.get(
+            "/nutrition/lookup",
+            params={
+                "query": query,
+                "quantity": str(quantity),
+                "max_results": str(max_results),
+            },
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
     async def list_nutrition_log(
         self,
         auth_header: str,

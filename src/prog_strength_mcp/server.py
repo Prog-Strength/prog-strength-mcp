@@ -36,17 +36,9 @@ pantry.register(mcp, api)
 recipes.register(mcp, api)
 running.register(mcp, api)
 nutrition.register(mcp, api)
+nutrition_lookup.register(mcp, api)
 bodyweight.register(mcp, api)
 macro_goals.register(mcp, api)
-
-# Nutrition lookup talks to external databases (FatSecret, USDA), not
-# the Prog Strength API — it gets its own service, not `api`.
-_lookup_service = nutrition_lookup.NutritionLookupService.from_config(
-    fatsecret_client_id=_config.fatsecret_client_id,
-    fatsecret_client_secret=_config.fatsecret_client_secret,
-    usda_fdc_api_key=_config.usda_fdc_api_key,
-)
-nutrition_lookup.register(mcp, _lookup_service)
 
 
 @mcp.custom_route("/health", methods=["GET"])
