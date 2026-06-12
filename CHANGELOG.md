@@ -1,3 +1,10 @@
+## [0.16.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.16.0...v0.16.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* **ci:** authenticate to AWS via the shared OIDC role ([#6](https://github.com/Prog-Strength/prog-strength-mcp/issues/6)) ([d809510](https://github.com/Prog-Strength/prog-strength-mcp/commit/d8095108e9e99b0d64f57d191caeb6f9ce573718))
+
 # [0.16.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.15.0...v0.16.0) (2026-06-12)
 
 
