@@ -16,12 +16,18 @@ import httpx
 
 
 class APIError(RuntimeError):
-    """Raised when the API returns a non-2xx response."""
+    """Raised when the API returns a non-2xx response.
 
-    def __init__(self, status_code: int, message: str):
+    `request_id` is the API's X-Request-ID for the failed call when the
+    caller captured it (currently only lookup_food_nutrition does) —
+    threaded through so even failures are traceable in CloudWatch.
+    """
+
+    def __init__(self, status_code: int, message: str, request_id: str = ""):
         super().__init__(f"api returned {status_code}: {message}")
         self.status_code = status_code
         self.message = message
+        self.request_id = request_id
 
 
 class APIClient:
@@ -248,10 +254,13 @@ class APIClient:
     ) -> dict[str, Any]:
         """GET /nutrition/lookup. The API owns the external-provider
         integration (FatSecret, USDA FDC) and the durable cache; this
-        client just forwards. Returns the `{matches, quantity}` dict.
-        A 503 (providers unconfigured or all down) raises APIError like
-        every other endpoint — the tool layer adapts it into the
-        structured error dict the agent prompt expects.
+        client just forwards. Returns the `{matches, quantity}` dict
+        with the API's `request_id` attached — the correlation id for
+        CloudWatch `filter request_id = "…"` debugging, threaded all
+        the way to the frontend via the agent's tool_result SSE event.
+        A 503 (providers unconfigured or all down) raises APIError
+        (carrying the same request_id) — the tool layer adapts it into
+        the structured error dict the agent prompt expects.
         """
         resp = await self._client.get(
             "/nutrition/lookup",
@@ -262,9 +271,20 @@ class APIClient:
             },
             headers={"Authorization": auth_header},
         )
-        _raise_for_status(resp)
+        # Captured before the status check so failed lookups are just
+        # as traceable as served ones.
+        request_id = resp.headers.get("x-request-id", "")
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("error", resp.text)
+            except ValueError:
+                detail = resp.text
+            raise APIError(resp.status_code, detail, request_id=request_id)
         data = resp.json().get("data")
-        return data if isinstance(data, dict) else {}
+        out = data if isinstance(data, dict) else {}
+        if request_id:
+            out["request_id"] = request_id
+        return out
 
     async def list_nutrition_log(
         self,
