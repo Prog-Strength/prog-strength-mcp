@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.15.0...v0.16.0) (2026-06-12)
+
+
+### Features
+
+* thread the API's request id through lookup_food_nutrition ([#5](https://github.com/Prog-Strength/prog-strength-mcp/issues/5)) ([1282f19](https://github.com/Prog-Strength/prog-strength-mcp/commit/1282f19ae8bd4a8b3761ba10e5c65d4fbc065c97))
+
 # [0.15.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.14.0...v0.15.0) (2026-06-12)
 
 
