@@ -9,6 +9,7 @@ from prog_strength_mcp import (
     nutrition,
     nutrition_lookup,
     pantry,
+    planned_workouts,
     recipes,
     running,
     steps,
@@ -34,6 +35,7 @@ api = APIClient(base_url=_config.api_base_url)
 workouts.register(mcp, api)
 exercises.register(mcp, api)
 pantry.register(mcp, api)
+planned_workouts.register(mcp, api)
 recipes.register(mcp, api)
 running.register(mcp, api)
 nutrition.register(mcp, api)
