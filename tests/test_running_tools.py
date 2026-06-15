@@ -124,3 +124,131 @@ async def test_get_running_best_efforts_tool_maps_api_error(monkeypatch):
 
     with pytest.raises(RuntimeError, match="500"):
         await tool.fn()
+
+
+# --- API client: get_running_max_effort_estimate ----------------------
+
+_SAMPLE_SUMMARY = {
+    "estimator_version": "v1",
+    "distances": [
+        {
+            "distance_key": "5k",
+            "distance_label": "5K",
+            "estimate": {"duration_seconds": 1320.0, "basis": "recent_long_run"},
+        }
+    ],
+}
+
+_SAMPLE_DETAIL = {
+    "estimator_version": "v1",
+    "distance_key": "5k",
+    "estimate": {"duration_seconds": 1320.0, "basis": "recent_long_run"},
+    "actual_best": {"duration_seconds": 1184.7},
+    "estimate_history": [],
+    "attempts": [],
+    "stats": {},
+}
+
+
+@respx.mock
+async def test_max_effort_summary_forwards_payload_and_auth():
+    """No distance_key → GET /running/max-effort, data forwarded verbatim."""
+    route = respx.get(f"{BASE_URL}/running/max-effort").mock(
+        return_value=httpx.Response(200, json={"data": _SAMPLE_SUMMARY})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.get_running_max_effort_estimate(AUTH)
+
+    assert result == _SAMPLE_SUMMARY
+    assert route.calls.last.request.headers["Authorization"] == AUTH
+
+
+@respx.mock
+async def test_max_effort_detail_hits_per_distance_path():
+    """distance_key="5k" → GET /running/max-effort/5k."""
+    route = respx.get(f"{BASE_URL}/running/max-effort/5k").mock(
+        return_value=httpx.Response(200, json={"data": _SAMPLE_DETAIL})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.get_running_max_effort_estimate(AUTH, distance_key="5k")
+
+    assert result == _SAMPLE_DETAIL
+    assert route.calls.last.request.headers["Authorization"] == AUTH
+
+
+@respx.mock
+async def test_max_effort_non_dict_data_yields_empty():
+    """A non-dict `data` (defensive) collapses to {}."""
+    respx.get(f"{BASE_URL}/running/max-effort").mock(
+        return_value=httpx.Response(200, json={"data": None})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.get_running_max_effort_estimate(AUTH)
+
+    assert result == {}
+
+
+@respx.mock
+async def test_max_effort_surfaces_api_error():
+    """A non-2xx response becomes an APIError carrying status + message."""
+    respx.get(f"{BASE_URL}/running/max-effort").mock(
+        return_value=httpx.Response(500, json={"error": "db exploded"})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        with pytest.raises(APIError) as excinfo:
+            await api.get_running_max_effort_estimate(AUTH)
+
+    assert excinfo.value.status_code == 500
+    assert excinfo.value.message == "db exploded"
+
+
+# --- Tool boundary: max-effort estimate -------------------------------
+
+
+async def test_max_effort_tool_requires_auth(monkeypatch):
+    """The auth guard fires (RuntimeError) before any HTTP forwarding for
+    both the summary and detail invocations. _ExplodingAPI would raise
+    AssertionError if HTTP were attempted.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(running, "get_http_headers", lambda **_: {})
+
+    class _ExplodingAPI:
+        async def get_running_max_effort_estimate(self, *a, **k):  # pragma: no cover
+            raise AssertionError("HTTP forwarding must not happen on missing auth")
+
+    mcp = FastMCP("test")
+    running.register(mcp, _ExplodingAPI())
+    tool = await mcp.get_tool("get_running_max_effort_estimate")
+
+    with pytest.raises(RuntimeError, match="Authorization"):
+        await tool.fn()
+    with pytest.raises(RuntimeError, match="Authorization"):
+        await tool.fn(distance_key="5k")
+
+
+async def test_max_effort_tool_maps_api_error(monkeypatch):
+    """An APIError from the client surfaces as a RuntimeError with the
+    status code in the message, for both summary and detail calls.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(
+        running,
+        "get_http_headers",
+        lambda **_: {"authorization": AUTH},
+    )
+
+    class _FailingAPI:
+        async def get_running_max_effort_estimate(self, *a, **k):
+            raise APIError(500, "db exploded")
+
+    mcp = FastMCP("test")
+    running.register(mcp, _FailingAPI())
+    tool = await mcp.get_tool("get_running_max_effort_estimate")
+
+    with pytest.raises(RuntimeError, match="500"):
+        await tool.fn()
+    with pytest.raises(RuntimeError, match="500"):
+        await tool.fn(distance_key="5k")
