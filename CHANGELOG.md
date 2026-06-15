@@ -1,3 +1,10 @@
+# [0.19.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.18.0...v0.19.0) (2026-06-15)
+
+
+### Features
+
+* **planned-workouts:** add MCP tools and api_client methods ([#9](https://github.com/Prog-Strength/prog-strength-mcp/issues/9)) ([59ae311](https://github.com/Prog-Strength/prog-strength-mcp/commit/59ae311b901c857176902064aad6fe1ae125e150))
+
 # [0.18.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.17.0...v0.18.0) (2026-06-15)
 
 
