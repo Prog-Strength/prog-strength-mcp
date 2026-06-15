@@ -1,3 +1,10 @@
+# [0.17.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.16.1...v0.17.0) (2026-06-15)
+
+
+### Features
+
+* **running:** forward max-effort estimates to the agent ([#7](https://github.com/Prog-Strength/prog-strength-mcp/issues/7)) ([0b57147](https://github.com/Prog-Strength/prog-strength-mcp/commit/0b57147ba91a8b220a8104ef493ed57a945b10f8))
+
 ## [0.16.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.16.0...v0.16.1) (2026-06-12)
 
 
