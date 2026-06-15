@@ -366,6 +366,76 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, list) else []
 
+    # --- Steps -------------------------------------------------------
+
+    async def log_steps(
+        self,
+        auth_header: str,
+        *,
+        date: str,
+        steps: int,
+    ) -> dict[str, Any]:
+        """PUT /steps/{date}. Upserts the daily step total for `date`
+        (YYYY-MM-DD). Returns the persisted day entry.
+        """
+        resp = await self._client.put(
+            f"/steps/{date}",
+            json={"steps": steps},
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def get_steps(
+        self,
+        auth_header: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> dict[str, Any]:
+        """GET /steps. since/until are YYYY-MM-DD bounds (both inclusive).
+        Returns the `{steps, next_before}` object under `data`.
+        """
+        params: dict[str, str] = {}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        resp = await self._client.get(
+            "/steps",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def get_steps_goal(self, auth_header: str) -> dict[str, Any]:
+        """GET /me/steps-goal. Returns the `{goal, created_at, updated_at}`
+        dict under `data`.
+        """
+        resp = await self._client.get(
+            "/me/steps-goal",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def set_steps_goal(
+        self, auth_header: str, *, goal: int
+    ) -> dict[str, Any]:
+        """PUT /me/steps-goal. Returns the persisted goal under `data`."""
+        resp = await self._client.put(
+            "/me/steps-goal",
+            json={"goal": goal},
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
     # --- Recipes -----------------------------------------------------
 
     async def list_recipes(self, auth_header: str) -> list[dict[str, Any]]:
