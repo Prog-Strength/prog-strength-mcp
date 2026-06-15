@@ -1,10 +1,12 @@
 """Running domain: MCP tools for reading the user's running data.
 
-This is the first running-domain MCP module — it mirrors the API's
-running surface (`GET /running/best-efforts`), giving the agent its
-first read access to the running side of training. Future running tools
-(e.g. list/get individual activities) land here rather than in a new
-module per tool, matching the per-domain grouping the other modules use.
+This module mirrors the API's running surface, giving the agent read
+access to the running side of training: `get_running_best_efforts`
+(the fastest the user has *actually* run each standard distance) and
+`get_running_max_effort_estimate` (the *predicted* time they could run
+right now at max effort). Future running tools (e.g. list/get individual
+activities) land here rather than in a new module per tool, matching the
+per-domain grouping the other modules use.
 
 Authorization is sourced from the inbound MCP request's `Authorization`
 header, the same pattern every other domain module uses.
@@ -65,5 +67,46 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         auth = _auth_header_or_raise()
         try:
             return await api.list_running_best_efforts(auth)
+        except APIError as e:
+            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+
+    @mcp.tool
+    async def get_running_max_effort_estimate(
+        distance_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Return the user's PREDICTED max-effort time per standard running
+        distance — what they could run *right now* at full effort, modeled
+        from recent training. This is DISTINCT from get_running_best_efforts,
+        which reports the fastest the user has *actually* run; this is a
+        forward-looking estimate of current fitness, not a logged result.
+
+        Omit `distance_key` for the cross-distance summary across all six
+        standard distances (1mi, 2mi, 5k, 10k, half_marathon, marathon).
+        Pass one of those keys for the per-distance detail: the point
+        estimate plus its confidence band, the estimate-over-time history,
+        the underlying attempts, and stat tiles.
+
+        Use this for coaching questions about current potential — e.g.
+        whether the user is "on track to break 22:00 for the 5K." Each
+        estimate carries a confidence band and a `basis` label describing
+        what it was derived from, and may be null when there's insufficient
+        data to model a distance.
+
+        Args:
+            distance_key: One of 1mi, 2mi, 5k, 10k, half_marathon, marathon
+                for the per-distance detail; omit for the cross-distance
+                summary.
+
+        Returns:
+            For the summary, a dict with `estimator_version` and a
+            `distances` list. For a single distance, a dict with the
+            distance's `estimate`, `actual_best`, `estimate_history`,
+            `attempts`, and `stats`.
+        """
+        auth = _auth_header_or_raise()
+        try:
+            return await api.get_running_max_effort_estimate(
+                auth, distance_key=distance_key
+            )
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e

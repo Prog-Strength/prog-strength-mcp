@@ -11,6 +11,7 @@ and omit the header.
 """
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -480,6 +481,26 @@ class APIClient:
         """
         resp = await self._client.get(
             "/running/best-efforts",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def get_running_max_effort_estimate(
+        self, auth_header: str, *, distance_key: str | None = None
+    ) -> dict[str, Any]:
+        """GET /running/max-effort (cross-distance summary) or
+        /running/max-effort/{distance_key} (per-distance detail) when a
+        distance_key is given. Returns the dict under the API's `data`
+        envelope — the user's predicted max-effort time(s).
+        """
+        if distance_key:
+            path = f"/running/max-effort/{quote(distance_key, safe='')}"
+        else:
+            path = "/running/max-effort"
+        resp = await self._client.get(
+            path,
             headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
