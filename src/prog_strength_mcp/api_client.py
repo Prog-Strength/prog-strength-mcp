@@ -126,6 +126,167 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    # --- Planned workouts --------------------------------------------
+
+    async def create_planned_workout(
+        self,
+        auth_header: str,
+        *,
+        scheduled_start: str,
+        scheduled_end: str,
+        timezone: str | None = None,
+        name: str | None = None,
+        notes: str | None = None,
+        calendar_detail: str | None = None,
+        exercises: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """POST /planned-workouts. Creates a forward-looking planned
+        workout. Omitted optional fields are left out of the body so the
+        API's server-side defaults apply.
+        """
+        body: dict[str, Any] = {
+            "scheduled_start": scheduled_start,
+            "scheduled_end": scheduled_end,
+        }
+        if timezone is not None:
+            body["timezone"] = timezone
+        if name is not None:
+            body["name"] = name
+        if notes is not None:
+            body["notes"] = notes
+        if calendar_detail is not None:
+            body["calendar_detail"] = calendar_detail
+        if exercises is not None:
+            body["exercises"] = exercises
+        resp = await self._client.post(
+            "/planned-workouts",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def list_planned_workouts(
+        self,
+        auth_header: str,
+        *,
+        since: str,
+        until: str,
+    ) -> list[dict[str, Any]]:
+        """GET /planned-workouts?since=&until=. The week view: `since` is
+        inclusive, `until` exclusive, both RFC3339. Returns the list under
+        `data`.
+        """
+        resp = await self._client.get(
+            "/planned-workouts",
+            params={"since": since, "until": until},
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
+    async def update_planned_workout(
+        self,
+        auth_header: str,
+        planned_workout_id: str,
+        *,
+        scheduled_start: str | None = None,
+        scheduled_end: str | None = None,
+        timezone: str | None = None,
+        name: str | None = None,
+        notes: str | None = None,
+        calendar_detail: str | None = None,
+        exercises: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """PUT /planned-workouts/{id}. Omitted optional fields are left
+        out of the body so the API leaves them unchanged / applies
+        defaults.
+        """
+        body: dict[str, Any] = {}
+        if scheduled_start is not None:
+            body["scheduled_start"] = scheduled_start
+        if scheduled_end is not None:
+            body["scheduled_end"] = scheduled_end
+        if timezone is not None:
+            body["timezone"] = timezone
+        if name is not None:
+            body["name"] = name
+        if notes is not None:
+            body["notes"] = notes
+        if calendar_detail is not None:
+            body["calendar_detail"] = calendar_detail
+        if exercises is not None:
+            body["exercises"] = exercises
+        resp = await self._client.put(
+            f"/planned-workouts/{planned_workout_id}",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def skip_planned_workout(
+        self, auth_header: str, planned_workout_id: str
+    ) -> dict[str, Any]:
+        """POST /planned-workouts/{id}/skip. Marks the plan skipped and
+        returns the updated plan.
+        """
+        resp = await self._client.post(
+            f"/planned-workouts/{planned_workout_id}/skip",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def schedule_workout_to_calendar(
+        self,
+        auth_header: str,
+        planned_workout_id: str,
+        *,
+        detail_level: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /planned-workouts/{id}/schedule. Pushes the plan to the
+        user's connected Google Calendar (Phase 3 calendar-sync API). Sends
+        `{"detail_level": ...}` when provided, else an empty body so the
+        API uses the plan's stored detail.
+        """
+        body: dict[str, Any] = {}
+        if detail_level is not None:
+            body["detail_level"] = detail_level
+        resp = await self._client.post(
+            f"/planned-workouts/{planned_workout_id}/schedule",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def complete_planned_workout(
+        self,
+        auth_header: str,
+        planned_workout_id: str,
+        *,
+        session_id: str,
+        session_kind: str,
+    ) -> dict[str, Any]:
+        """POST /planned-workouts/{id}/complete. Marks the plan completed
+        and links the logged session (Phase 4 completion API). `session_kind`
+        is "workout" or "activity".
+        """
+        body = {"session_id": session_id, "session_kind": session_kind}
+        resp = await self._client.post(
+            f"/planned-workouts/{planned_workout_id}/complete",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
 
     # --- Pantry items ------------------------------------------------
 
