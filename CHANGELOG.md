@@ -1,3 +1,10 @@
+# [0.18.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.17.0...v0.18.0) (2026-06-15)
+
+
+### Features
+
+* **steps:** MCP steps module (log_steps, goal get/set, get_steps) ([#8](https://github.com/Prog-Strength/prog-strength-mcp/issues/8)) ([363d9f9](https://github.com/Prog-Strength/prog-strength-mcp/commit/363d9f9ca446588211488d278d86696963306abd))
+
 # [0.17.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.16.1...v0.17.0) (2026-06-15)
 
 
