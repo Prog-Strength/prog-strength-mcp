@@ -173,19 +173,37 @@ class APIClient:
         *,
         since: str,
         until: str,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """GET /planned-workouts?since=&until=. The week view: `since` is
-        inclusive, `until` exclusive, both RFC3339. Returns the list under
-        `data`.
+        inclusive, `until` exclusive, both RFC3339.
+
+        Returns `{"workouts": [...], "request_id": "…"}` — the plans under
+        `workouts`, plus the API's X-Request-ID so a "why did this return
+        the wrong plans?" report pivots straight into CloudWatch
+        (`filter request_id = "…"`), the same end-to-end tracing
+        lookup_food_nutrition wired. The id rides the agent's tool_result
+        SSE event because the result is a JSON object; a bare list (the old
+        shape) could never carry it. A failure raises APIError carrying the
+        same id, so empty results are just as traceable as served ones.
         """
         resp = await self._client.get(
             "/planned-workouts",
             params={"since": since, "until": until},
             headers={"Authorization": auth_header},
         )
-        _raise_for_status(resp)
+        # Captured before the status check so failed lists stay traceable.
+        request_id = resp.headers.get("x-request-id", "")
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("error", resp.text)
+            except ValueError:
+                detail = resp.text
+            raise APIError(resp.status_code, detail, request_id=request_id)
         data = resp.json().get("data")
-        return data if isinstance(data, list) else []
+        out: dict[str, Any] = {"workouts": data if isinstance(data, list) else []}
+        if request_id:
+            out["request_id"] = request_id
+        return out
 
     async def update_planned_workout(
         self,
