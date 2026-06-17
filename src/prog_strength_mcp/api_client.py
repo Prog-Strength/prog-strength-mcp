@@ -171,11 +171,18 @@ class APIClient:
         self,
         auth_header: str,
         *,
-        since: str,
-        until: str,
+        timezone: str,
+        date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> dict[str, Any]:
-        """GET /planned-workouts?since=&until=. The week view: `since` is
-        inclusive, `until` exclusive, both RFC3339.
+        """GET /planned-workouts with the timezone-aware date contract: a
+        required IANA `timezone` plus either `date` (a single local day) or
+        `start_date`+`end_date` (an inclusive local range), all YYYY-MM-DD.
+        The API resolves them to the user-local day boundaries in UTC — the
+        same contract the nutrition endpoints use, so the model never builds
+        UTC timestamps itself (the bug that dropped evening workouts for any
+        user not on UTC).
 
         Returns `{"workouts": [...], "request_id": "…"}` — the plans under
         `workouts`, plus the API's X-Request-ID so a "why did this return
@@ -186,9 +193,16 @@ class APIClient:
         shape) could never carry it. A failure raises APIError carrying the
         same id, so empty results are just as traceable as served ones.
         """
+        params: dict[str, str] = {"timezone": timezone}
+        if date:
+            params["date"] = date
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
         resp = await self._client.get(
             "/planned-workouts",
-            params={"since": since, "until": until},
+            params=params,
             headers={"Authorization": auth_header},
         )
         # Captured before the status check so failed lists stay traceable.
