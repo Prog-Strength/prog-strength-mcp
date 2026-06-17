@@ -141,7 +141,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
 
     @mcp.tool
-    async def list_planned_workouts(since: str, until: str) -> list[dict[str, Any]]:
+    async def list_planned_workouts(since: str, until: str) -> dict[str, Any]:
         """List the calling user's planned workouts in a time range — the
         week view.
 
@@ -149,13 +149,23 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             since: RFC3339 lower bound on scheduled_start (inclusive).
             until: RFC3339 upper bound on scheduled_start (exclusive).
 
-        Returns the plans scheduled in [since, until).
+        Returns `{"workouts": [...]}` — the plans scheduled in
+        [since, until), each with its scheduled_start/scheduled_end and
+        agenda. The response also carries a `request_id`: operational
+        tracing metadata, never read it aloud to the user. If the list
+        looks short, widen the window — `since`/`until` filter on
+        scheduled_start, so a plan whose start sits just outside the range
+        won't appear.
         """
         auth = _auth_header_or_raise()
         try:
             return await api.list_planned_workouts(auth, since=since, until=until)
         except APIError as e:
-            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+            # request_id in the message keeps even a failed list pivotable
+            # into CloudWatch.
+            raise RuntimeError(
+                f"API error ({e.status_code}, request_id={e.request_id}): {e.message}"
+            ) from e
 
     @mcp.tool
     async def update_planned_workout(

@@ -118,7 +118,7 @@ async def test_create_planned_workout_surfaces_api_error():
 
 
 @respx.mock
-async def test_list_planned_workouts_sets_range_and_returns_list():
+async def test_list_planned_workouts_sets_range_and_wraps_plans():
     route = respx.get(f"{BASE_URL}/planned-workouts").mock(
         return_value=httpx.Response(200, json={"data": [_SAMPLE_PLAN]})
     )
@@ -129,11 +129,35 @@ async def test_list_planned_workouts_sets_range_and_returns_list():
             until="2026-06-22T00:00:00Z",
         )
 
-    assert result == [_SAMPLE_PLAN]
+    # The plans come back under `workouts`; no X-Request-ID on the mock
+    # response means the key is simply absent (tracing is a bonus, never a
+    # required field).
+    assert result == {"workouts": [_SAMPLE_PLAN]}
     req = route.calls.last.request
     assert req.headers["Authorization"] == AUTH
     assert req.url.params["since"] == "2026-06-15T00:00:00Z"
     assert req.url.params["until"] == "2026-06-22T00:00:00Z"
+
+
+@respx.mock
+async def test_list_planned_workouts_surfaces_request_id():
+    """The API's X-Request-ID rides back on the envelope so a chat report
+    pivots straight into CloudWatch — the same end-to-end tracing the
+    nutrition lookup wired.
+    """
+    respx.get(f"{BASE_URL}/planned-workouts").mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": [_SAMPLE_PLAN]},
+            headers={"X-Request-ID": "req_abc123"},
+        )
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.list_planned_workouts(
+            AUTH, since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
+        )
+
+    assert result == {"workouts": [_SAMPLE_PLAN], "request_id": "req_abc123"}
 
 
 @respx.mock
@@ -146,7 +170,30 @@ async def test_list_planned_workouts_non_list_data_yields_empty():
             AUTH, since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
         )
 
-    assert result == []
+    assert result == {"workouts": []}
+
+
+@respx.mock
+async def test_list_planned_workouts_error_carries_request_id():
+    """A failed list raises APIError carrying the X-Request-ID, so even the
+    failure is traceable; the tool layer folds it into the RuntimeError.
+    """
+    respx.get(f"{BASE_URL}/planned-workouts").mock(
+        return_value=httpx.Response(
+            500,
+            json={"error": "db exploded"},
+            headers={"X-Request-ID": "req_fail9"},
+        )
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        with pytest.raises(APIError) as excinfo:
+            await api.list_planned_workouts(
+                AUTH, since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
+            )
+
+    assert excinfo.value.status_code == 500
+    assert excinfo.value.message == "db exploded"
+    assert excinfo.value.request_id == "req_fail9"
 
 
 # --- API client: update_planned_workout -------------------------------
@@ -237,6 +284,37 @@ async def test_complete_planned_workout_posts_session_link():
         "session_id": "wk_99",
         "session_kind": "workout",
     }
+
+
+# --- Tool boundary: list returns the {workouts, request_id} envelope --
+
+
+async def test_list_planned_workouts_tool_returns_envelope(monkeypatch):
+    """The tool forwards the client's envelope to the model verbatim, so the
+    request_id reaches the agent's tool_result SSE event (the agent only
+    plucks request_id off a JSON object, never a bare list).
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(
+        planned_workouts,
+        "get_http_headers",
+        lambda **_: {"authorization": AUTH},
+    )
+
+    class _StubAPI:
+        async def list_planned_workouts(self, auth_header, *, since, until):
+            assert auth_header == AUTH
+            return {"workouts": [_SAMPLE_PLAN], "request_id": "req_abc123"}
+
+    mcp = FastMCP("test")
+    planned_workouts.register(mcp, _StubAPI())
+    list_tool = await mcp.get_tool("list_planned_workouts")
+
+    result = await list_tool.fn(
+        since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
+    )
+    assert result == {"workouts": [_SAMPLE_PLAN], "request_id": "req_abc123"}
 
 
 # --- Tool boundary: Authorization is required before any HTTP call ----
