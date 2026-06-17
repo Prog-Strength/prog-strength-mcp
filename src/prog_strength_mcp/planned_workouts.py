@@ -141,25 +141,42 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
 
     @mcp.tool
-    async def list_planned_workouts(since: str, until: str) -> dict[str, Any]:
-        """List the calling user's planned workouts in a time range — the
-        week view.
+    async def list_planned_workouts(
+        timezone: str,
+        date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any]:
+        """List the calling user's planned workouts for a local day or date
+        range.
+
+        Pass the user's IANA timezone plus EITHER `date` (one day) OR
+        `start_date`+`end_date` (an inclusive range), all YYYY-MM-DD. The API
+        resolves them to the user's local-day boundaries — do NOT build UTC
+        timestamps yourself, and do NOT pass a time of day. For "what's on
+        today" use date=<today in the user's timezone>; for "this week" use
+        the start_date/end_date of the week.
 
         Args:
-            since: RFC3339 lower bound on scheduled_start (inclusive).
-            until: RFC3339 upper bound on scheduled_start (exclusive).
+            timezone: IANA timezone name, e.g. 'America/Denver'.
+            date: A single local day (YYYY-MM-DD). Use for "today" / a named day.
+            start_date: Inclusive range start (YYYY-MM-DD). Pair with end_date.
+            end_date: Inclusive range end (YYYY-MM-DD). Pair with start_date.
 
-        Returns `{"workouts": [...]}` — the plans scheduled in
-        [since, until), each with its scheduled_start/scheduled_end and
-        agenda. The response also carries a `request_id`: operational
-        tracing metadata, never read it aloud to the user. If the list
-        looks short, widen the window — `since`/`until` filter on
-        scheduled_start, so a plan whose start sits just outside the range
-        won't appear.
+        Returns `{"workouts": [...]}` — the plans on those local day(s), each
+        with its scheduled_start/scheduled_end and agenda. The response also
+        carries a `request_id`: operational tracing metadata, never read it
+        aloud to the user.
         """
         auth = _auth_header_or_raise()
         try:
-            return await api.list_planned_workouts(auth, since=since, until=until)
+            return await api.list_planned_workouts(
+                auth,
+                timezone=timezone,
+                date=date,
+                start_date=start_date,
+                end_date=end_date,
+            )
         except APIError as e:
             # request_id in the message keeps even a failed list pivotable
             # into CloudWatch.

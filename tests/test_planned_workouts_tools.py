@@ -118,15 +118,15 @@ async def test_create_planned_workout_surfaces_api_error():
 
 
 @respx.mock
-async def test_list_planned_workouts_sets_range_and_wraps_plans():
+async def test_list_planned_workouts_single_day_forwards_timezone_and_date():
     route = respx.get(f"{BASE_URL}/planned-workouts").mock(
         return_value=httpx.Response(200, json={"data": [_SAMPLE_PLAN]})
     )
     async with APIClient(base_url=BASE_URL) as api:
         result = await api.list_planned_workouts(
             AUTH,
-            since="2026-06-15T00:00:00Z",
-            until="2026-06-22T00:00:00Z",
+            timezone="America/Denver",
+            date="2026-06-17",
         )
 
     # The plans come back under `workouts`; no X-Request-ID on the mock
@@ -135,8 +135,31 @@ async def test_list_planned_workouts_sets_range_and_wraps_plans():
     assert result == {"workouts": [_SAMPLE_PLAN]}
     req = route.calls.last.request
     assert req.headers["Authorization"] == AUTH
-    assert req.url.params["since"] == "2026-06-15T00:00:00Z"
-    assert req.url.params["until"] == "2026-06-22T00:00:00Z"
+    # Timezone + local date forwarded as-is; the API does the UTC conversion.
+    assert req.url.params["timezone"] == "America/Denver"
+    assert req.url.params["date"] == "2026-06-17"
+    assert "start_date" not in req.url.params
+    assert "since" not in req.url.params
+
+
+@respx.mock
+async def test_list_planned_workouts_range_forwards_start_and_end():
+    route = respx.get(f"{BASE_URL}/planned-workouts").mock(
+        return_value=httpx.Response(200, json={"data": [_SAMPLE_PLAN]})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        await api.list_planned_workouts(
+            AUTH,
+            timezone="America/Denver",
+            start_date="2026-06-15",
+            end_date="2026-06-21",
+        )
+
+    req = route.calls.last.request
+    assert req.url.params["timezone"] == "America/Denver"
+    assert req.url.params["start_date"] == "2026-06-15"
+    assert req.url.params["end_date"] == "2026-06-21"
+    assert "date" not in req.url.params
 
 
 @respx.mock
@@ -154,7 +177,7 @@ async def test_list_planned_workouts_surfaces_request_id():
     )
     async with APIClient(base_url=BASE_URL) as api:
         result = await api.list_planned_workouts(
-            AUTH, since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
+            AUTH, timezone="America/Denver", date="2026-06-17"
         )
 
     assert result == {"workouts": [_SAMPLE_PLAN], "request_id": "req_abc123"}
@@ -167,7 +190,7 @@ async def test_list_planned_workouts_non_list_data_yields_empty():
     )
     async with APIClient(base_url=BASE_URL) as api:
         result = await api.list_planned_workouts(
-            AUTH, since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
+            AUTH, timezone="America/Denver", date="2026-06-17"
         )
 
     assert result == {"workouts": []}
@@ -188,7 +211,7 @@ async def test_list_planned_workouts_error_carries_request_id():
     async with APIClient(base_url=BASE_URL) as api:
         with pytest.raises(APIError) as excinfo:
             await api.list_planned_workouts(
-                AUTH, since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
+                AUTH, timezone="America/Denver", date="2026-06-17"
             )
 
     assert excinfo.value.status_code == 500
@@ -303,17 +326,19 @@ async def test_list_planned_workouts_tool_returns_envelope(monkeypatch):
     )
 
     class _StubAPI:
-        async def list_planned_workouts(self, auth_header, *, since, until):
+        async def list_planned_workouts(
+            self, auth_header, *, timezone, date, start_date, end_date
+        ):
             assert auth_header == AUTH
+            assert timezone == "America/Denver"
+            assert date == "2026-06-17"
             return {"workouts": [_SAMPLE_PLAN], "request_id": "req_abc123"}
 
     mcp = FastMCP("test")
     planned_workouts.register(mcp, _StubAPI())
     list_tool = await mcp.get_tool("list_planned_workouts")
 
-    result = await list_tool.fn(
-        since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z"
-    )
+    result = await list_tool.fn(timezone="America/Denver", date="2026-06-17")
     assert result == {"workouts": [_SAMPLE_PLAN], "request_id": "req_abc123"}
 
 
@@ -364,7 +389,7 @@ async def test_planned_workouts_tools_require_auth(monkeypatch):
             scheduled_end="2026-06-16T19:00:00Z",
         )
     with pytest.raises(RuntimeError, match="Authorization"):
-        await list_tool.fn(since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z")
+        await list_tool.fn(timezone="America/Denver", date="2026-06-17")
     with pytest.raises(RuntimeError, match="Authorization"):
         await update_tool.fn(planned_workout_id="pw_1a2", name="x")
     with pytest.raises(RuntimeError, match="Authorization"):
@@ -427,7 +452,7 @@ async def test_planned_workouts_tools_map_api_error(monkeypatch):
             scheduled_end="2026-06-16T19:00:00Z",
         )
     with pytest.raises(RuntimeError, match="500"):
-        await list_tool.fn(since="2026-06-15T00:00:00Z", until="2026-06-22T00:00:00Z")
+        await list_tool.fn(timezone="America/Denver", date="2026-06-17")
     with pytest.raises(RuntimeError, match="500"):
         await update_tool.fn(planned_workout_id="pw_1a2", name="x")
     with pytest.raises(RuntimeError, match="500"):
