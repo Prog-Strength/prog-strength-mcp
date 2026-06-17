@@ -1,3 +1,10 @@
+## [0.20.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.20.0...v0.20.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* **planned-workouts:** list_planned_workouts takes timezone + local date ([#11](https://github.com/Prog-Strength/prog-strength-mcp/issues/11)) ([4dc1d24](https://github.com/Prog-Strength/prog-strength-mcp/commit/4dc1d245a8a50ed2fa4d5a6df0b70f31119c0a79))
+
 # [0.20.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.19.0...v0.20.0) (2026-06-17)
 
 
