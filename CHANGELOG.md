@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.19.0...v0.20.0) (2026-06-17)
+
+
+### Features
+
+* **planned-workouts:** surface API request_id on list_planned_workouts ([#10](https://github.com/Prog-Strength/prog-strength-mcp/issues/10)) ([8486456](https://github.com/Prog-Strength/prog-strength-mcp/commit/8486456c4e567c471c762c43c648a039c993206d))
+
 # [0.19.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.18.0...v0.19.0) (2026-06-15)
 
 
