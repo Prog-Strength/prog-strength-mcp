@@ -156,9 +156,6 @@ async def _tool_fn(monkeypatch, name: str):
         async def get_daily_macros(self, *a, **k):  # pragma: no cover
             raise AssertionError("HTTP forwarding must not happen on missing timezone")
 
-        async def log_custom_meal(self, *a, **k):  # pragma: no cover
-            raise AssertionError("HTTP forwarding must not happen on missing auth")
-
     mcp = FastMCP("test")
     nutrition.register(mcp, _ExplodingAPI())
 
@@ -179,154 +176,227 @@ async def test_get_daily_macros_tool_requires_timezone(monkeypatch):
         await fn(timezone="")
 
 
-# --- API client: log_custom_meal --------------------------------------
+# --- API client: log_consumption_batch --------------------------------
 
 
 @respx.mock
-async def test_log_custom_meal_forwards_all_fields_and_auth():
-    """All seven non-timestamp fields land in the JSON body and the
-    Authorization header is set. consumed_at is included when supplied.
+async def test_log_consumption_batch_forwards_body_and_auth():
+    """A heterogeneous items list is forwarded verbatim under {"items": [...]}
+    with each item's kind and fields intact and the Authorization header set;
+    the returned dict is the API's `data` payload.
     """
-    route = respx.post(f"{BASE_URL}/nutrition-log/custom").mock(
-        return_value=httpx.Response(200, json={"data": {"id": "log-1"}})
-    )
-    async with APIClient(base_url=BASE_URL) as api:
-        result = await api.log_custom_meal(
-            AUTH,
-            name="Chipotle chicken bowl",
-            calories=850,
-            protein_g=55,
-            fat_g=30,
-            carbs_g=75,
-            meal="dinner",
-            consumed_at="2026-06-06T18:42:00Z",
+    route = respx.post(f"{BASE_URL}/nutrition-log/batch").mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": {"results": [], "logged": 0, "failed": 0}},
         )
+    )
+    items = [
+        {"kind": "pantry", "pantry_item_id": "p-1", "quantity": 5, "meal": "breakfast"},
+        {
+            "kind": "custom",
+            "name": "Chipotle chicken bowl",
+            "calories": 850,
+            "protein_g": 55,
+            "fat_g": 30,
+            "carbs_g": 75,
+            "meal": "dinner",
+        },
+    ]
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.log_consumption_batch(AUTH, items=items)
 
-    assert result == {"id": "log-1"}
+    assert result == {"results": [], "logged": 0, "failed": 0}
     request = route.calls.last.request
     assert request.headers["Authorization"] == AUTH
     body = json.loads(request.content)
-    assert body == {
-        "name": "Chipotle chicken bowl",
-        "calories": 850,
-        "protein_g": 55,
-        "fat_g": 30,
-        "carbs_g": 75,
-        "meal": "dinner",
-        "consumed_at": "2026-06-06T18:42:00Z",
-    }
+    assert body == {"items": items}
+
+
+# --- Tool boundary: log_consumption_batch -----------------------------
+
+
+async def _batch_tool(api):
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("test")
+    nutrition.register(mcp, api)
+    return await mcp.get_tool("log_consumption_batch")
 
 
 @respx.mock
-async def test_log_custom_meal_omits_consumed_at_when_none():
-    """consumed_at is left out of the body entirely when not passed, so
-    the API applies its server-side `time.Now()` default.
+async def test_batch_tool_forwards_heterogeneous_list(monkeypatch):
+    """The registered tool forwards a mixed pantry + custom list: kinds are
+    preserved and `consumed_at` is omitted from each item when it is None.
     """
-    route = respx.post(f"{BASE_URL}/nutrition-log/custom").mock(
-        return_value=httpx.Response(200, json={"data": {"id": "log-2"}})
+    monkeypatch.setattr(
+        nutrition,
+        "get_http_headers",
+        lambda **_: {"authorization": AUTH},
+    )
+    route = respx.post(f"{BASE_URL}/nutrition-log/batch").mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": {"results": [], "logged": 2, "failed": 0}},
+        )
     )
     async with APIClient(base_url=BASE_URL) as api:
-        await api.log_custom_meal(
-            AUTH,
-            name="airport protein bar",
-            calories=200,
-            protein_g=20,
-            fat_g=7,
-            carbs_g=22,
-            meal="snack",
+        tool = await _batch_tool(api)
+        await tool.run(
+            {
+                "items": [
+                    {
+                        "kind": "pantry",
+                        "pantry_item_id": "p-1",
+                        "quantity": 5,
+                        "meal": "breakfast",
+                    },
+                    {
+                        "kind": "custom",
+                        "name": "Chipotle chicken bowl",
+                        "calories": 850,
+                        "protein_g": 55,
+                        "fat_g": 30,
+                        "carbs_g": 75,
+                        "meal": "dinner",
+                    },
+                ]
+            }
         )
 
     body = json.loads(route.calls.last.request.content)
-    assert "consumed_at" not in body
     assert body == {
-        "name": "airport protein bar",
-        "calories": 200,
-        "protein_g": 20,
-        "fat_g": 7,
-        "carbs_g": 22,
-        "meal": "snack",
+        "items": [
+            {
+                "kind": "pantry",
+                "pantry_item_id": "p-1",
+                "quantity": 5,
+                "meal": "breakfast",
+            },
+            {
+                "kind": "custom",
+                "name": "Chipotle chicken bowl",
+                "calories": 850,
+                "protein_g": 55,
+                "fat_g": 30,
+                "carbs_g": 75,
+                "meal": "dinner",
+            },
+        ]
     }
+    # consumed_at was None on both items, so it never appears in the body.
+    for item in body["items"]:
+        assert "consumed_at" not in item
 
 
-# --- Tool boundary: log_custom_meal -----------------------------------
+@respx.mock
+async def test_batch_tool_surfaces_per_item_failure(monkeypatch):
+    """A best-effort 200 with a failed item is returned verbatim so the
+    agent can read `failed`/`results` and tell the user what didn't log.
+    """
+    monkeypatch.setattr(
+        nutrition,
+        "get_http_headers",
+        lambda **_: {"authorization": AUTH},
+    )
+    payload = {
+        "results": [{"index": 0, "ok": False, "error": "pantry item not found"}],
+        "logged": 0,
+        "failed": 1,
+    }
+    respx.post(f"{BASE_URL}/nutrition-log/batch").mock(
+        return_value=httpx.Response(200, json={"data": payload})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        tool = await _batch_tool(api)
+        result = await tool.run(
+            {
+                "items": [
+                    {
+                        "kind": "pantry",
+                        "pantry_item_id": "missing",
+                        "quantity": 1,
+                        "meal": "lunch",
+                    }
+                ]
+            }
+        )
+
+    assert result.structured_content == payload
 
 
-async def test_log_custom_meal_tool_requires_auth(monkeypatch):
+# --- Tool boundary: discriminated-union validation --------------------
+#
+# Per-kind required fields are enforced by FastMCP's validated invocation
+# path — `tool.run(args)` builds a pydantic model from the annotations and
+# raises `pydantic.ValidationError` before the tool body (and any HTTP).
+
+
+async def test_batch_tool_rejects_pantry_item_missing_id():
+    class _ExplodingAPI:
+        async def log_consumption_batch(self, *a, **k):  # pragma: no cover
+            raise AssertionError("validation must reject before HTTP forwarding")
+
+    tool = await _batch_tool(_ExplodingAPI())
+    with pytest.raises(pydantic.ValidationError, match="pantry_item_id"):
+        await tool.run({"items": [{"kind": "pantry", "quantity": 1, "meal": "lunch"}]})
+
+
+async def test_batch_tool_rejects_custom_item_missing_calories():
+    class _ExplodingAPI:
+        async def log_consumption_batch(self, *a, **k):  # pragma: no cover
+            raise AssertionError("validation must reject before HTTP forwarding")
+
+    tool = await _batch_tool(_ExplodingAPI())
+    with pytest.raises(pydantic.ValidationError, match="calories"):
+        await tool.run(
+            {
+                "items": [
+                    {
+                        "kind": "custom",
+                        "name": "mystery snack",
+                        "protein_g": 10,
+                        "fat_g": 5,
+                        "carbs_g": 20,
+                        "meal": "snack",
+                    }
+                ]
+            }
+        )
+
+
+async def test_batch_tool_requires_auth(monkeypatch):
     """The auth guard fires (RuntimeError) before any HTTP forwarding when
     the inbound request carries no Authorization header. _ExplodingAPI's
-    log_custom_meal would raise AssertionError if HTTP were attempted.
+    log_consumption_batch would raise AssertionError if HTTP were attempted.
     """
-    from fastmcp import FastMCP
-
     monkeypatch.setattr(nutrition, "get_http_headers", lambda **_: {})
 
     class _ExplodingAPI:
-        async def log_custom_meal(self, *a, **k):  # pragma: no cover
+        async def log_consumption_batch(self, *a, **k):  # pragma: no cover
             raise AssertionError("HTTP forwarding must not happen on missing auth")
 
-    mcp = FastMCP("test")
-    nutrition.register(mcp, _ExplodingAPI())
-    tool = await mcp.get_tool("log_custom_meal")
-
+    tool = await _batch_tool(_ExplodingAPI())
     with pytest.raises(RuntimeError, match="Authorization"):
         await tool.fn(
-            name="Chipotle bowl",
-            calories=850,
-            protein_g=55,
-            fat_g=30,
-            carbs_g=75,
-            meal="dinner",
+            items=[
+                nutrition.PantryItem(kind="pantry", pantry_item_id="p-1", quantity=1, meal="lunch")
+            ]
         )
 
 
-# --- Tool boundary: Pydantic Field validation -------------------------
-#
-# Field constraints (min_length/max_length on name, ge/le on the macros)
-# are enforced by FastMCP's validated invocation path — `tool.run(args)` —
-# which builds a pydantic model from the annotations. Calling `tool.fn`
-# directly (as the auth-guard tests above do) bypasses that model and so
-# does NOT enforce Field constraints in this FastMCP version. We therefore
-# exercise the constraints through `tool.run`, which raises
-# `pydantic.ValidationError` before the tool body (and any HTTP) runs.
+# --- Registration: old tools removed, batch tool present --------------
 
 
-async def _custom_meal_tool():
+async def test_single_item_tools_removed_and_batch_present():
     from fastmcp import FastMCP
 
-    class _ExplodingAPI:
-        async def log_custom_meal(self, *a, **k):  # pragma: no cover
-            raise AssertionError("validation must reject before HTTP forwarding")
+    class _StubAPI:
+        pass
 
     mcp = FastMCP("test")
-    nutrition.register(mcp, _ExplodingAPI())
-    return await mcp.get_tool("log_custom_meal")
+    nutrition.register(mcp, _StubAPI())
 
-
-async def test_log_custom_meal_rejects_empty_name():
-    tool = await _custom_meal_tool()
-    with pytest.raises(pydantic.ValidationError, match="name"):
-        await tool.run(
-            {
-                "name": "",
-                "calories": 100,
-                "protein_g": 10,
-                "fat_g": 5,
-                "carbs_g": 20,
-                "meal": "lunch",
-            }
-        )
-
-
-async def test_log_custom_meal_rejects_out_of_range_macro():
-    tool = await _custom_meal_tool()
-    with pytest.raises(pydantic.ValidationError, match="protein_g"):
-        await tool.run(
-            {
-                "name": "huge meal",
-                "calories": 100,
-                "protein_g": 99_999,
-                "fat_g": 5,
-                "carbs_g": 20,
-                "meal": "lunch",
-            }
-        )
+    assert await mcp.get_tool("log_consumption_batch") is not None
+    for gone in ("log_consumption", "log_custom_meal"):
+        assert await mcp.get_tool(gone) is None

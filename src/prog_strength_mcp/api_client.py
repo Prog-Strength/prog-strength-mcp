@@ -371,67 +371,20 @@ class APIClient:
 
     # --- Nutrition log -----------------------------------------------
 
-    async def log_consumption(
+    async def log_consumption_batch(
         self,
         auth_header: str,
         *,
-        pantry_item_id: str | None = None,
-        recipe_id: str | None = None,
-        quantity: float,
-        meal: str,
-        consumed_at: str | None = None,
+        items: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """POST /nutrition-log. Pass exactly one of pantry_item_id or
-        recipe_id — the API rejects "neither" and "both." `meal` is
-        required server-side (one of "breakfast", "lunch", "dinner",
-        "snack") so the UI can group entries into per-meal sections.
+        """POST /nutrition-log/batch. `items` is the already-serialized
+        list of discriminated-union items ({kind, ...}). Returns the
+        `{results, logged, failed}` data payload — best-effort, so a 200
+        can still carry per-item failures in `results`.
         """
-        body: dict[str, Any] = {"quantity": quantity, "meal": meal}
-        if pantry_item_id is not None:
-            body["pantry_item_id"] = pantry_item_id
-        if recipe_id is not None:
-            body["recipe_id"] = recipe_id
-        if consumed_at is not None:
-            body["consumed_at"] = consumed_at
         resp = await self._client.post(
-            "/nutrition-log",
-            json=body,
-            headers={"Authorization": auth_header},
-        )
-        _raise_for_status(resp)
-        data = resp.json().get("data")
-        return data if isinstance(data, dict) else {}
-
-    async def log_custom_meal(
-        self,
-        auth_header: str,
-        *,
-        name: str,
-        calories: float,
-        protein_g: float,
-        fat_g: float,
-        carbs_g: float,
-        meal: str,
-        consumed_at: str | None = None,
-    ) -> dict[str, Any]:
-        """POST /nutrition-log/custom. Logs a one-off meal the user typed,
-        not backed by a pantry item or recipe. The four macros and `name`
-        are stored as-typed; `meal` is required server-side (one of
-        "breakfast", "lunch", "dinner", "snack").
-        """
-        body: dict[str, Any] = {
-            "name": name,
-            "calories": calories,
-            "protein_g": protein_g,
-            "fat_g": fat_g,
-            "carbs_g": carbs_g,
-            "meal": meal,
-        }
-        if consumed_at is not None:
-            body["consumed_at"] = consumed_at
-        resp = await self._client.post(
-            "/nutrition-log/custom",
-            json=body,
+            "/nutrition-log/batch",
+            json={"items": items},
             headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
@@ -616,9 +569,7 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
-    async def set_steps_goal(
-        self, auth_header: str, *, goal: int
-    ) -> dict[str, Any]:
+    async def set_steps_goal(self, auth_header: str, *, goal: int) -> dict[str, Any]:
         """PUT /me/steps-goal. Returns the persisted goal under `data`."""
         resp = await self._client.put(
             "/me/steps-goal",

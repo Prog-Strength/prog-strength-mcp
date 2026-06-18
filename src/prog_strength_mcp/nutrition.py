@@ -2,18 +2,50 @@
 reading historical macros.
 
 Mirrors the API's `internal/nutrition/` log + daily-aggregate surface.
-Phase 1 ships log_consumption (pantry-item-only), list_nutrition_log,
-and get_daily_macros. Recipe-based logging and bodyweight live in
-later phases. See prog-strength-docs/sows/daily-nutrition-log.md.
+Phase 1 ships log_consumption_batch (pantry/recipe/custom items in one
+call), list_nutrition_log, and get_daily_macros. Bodyweight lives in a
+later phase. See prog-strength-docs/sows/daily-nutrition-log.md.
 """
 
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from prog_strength_mcp.api_client import APIClient, APIError
+
+_MEAL = Literal["breakfast", "lunch", "dinner", "snack"]
+
+
+class PantryItem(BaseModel):
+    kind: Literal["pantry"]
+    pantry_item_id: str
+    quantity: float = Field(gt=0)
+    meal: _MEAL
+    consumed_at: str | None = None
+
+
+class RecipeItem(BaseModel):
+    kind: Literal["recipe"]
+    recipe_id: str
+    quantity: float = Field(gt=0)
+    meal: _MEAL
+    consumed_at: str | None = None
+
+
+class CustomItem(BaseModel):
+    kind: Literal["custom"]
+    name: str = Field(min_length=1, max_length=200)
+    calories: float = Field(ge=0, le=100_000)
+    protein_g: float = Field(ge=0, le=10_000)
+    fat_g: float = Field(ge=0, le=10_000)
+    carbs_g: float = Field(ge=0, le=10_000)
+    meal: _MEAL
+    consumed_at: str | None = None
+
+
+Item = Annotated[PantryItem | RecipeItem | CustomItem, Field(discriminator="kind")]
 
 
 def _auth_header_or_raise() -> str:
@@ -34,142 +66,46 @@ def register(mcp: FastMCP, api: APIClient) -> None:
     """Register nutrition log tools on `mcp`, backed by `api`."""
 
     @mcp.tool
-    async def log_consumption(
-        quantity: Annotated[
-            float,
-            Field(
-                gt=0,
-                description=(
-                    "How many servings (for a pantry item) or batches (for "
-                    "a recipe) the user ate. Multiplied through the source's "
-                    "per-serving macros — '5 eggs' with a 1-egg pantry item "
-                    "is quantity=5; 'half a recipe' is quantity=0.5."
-                ),
-            ),
-        ],
-        meal: Annotated[
-            Literal["breakfast", "lunch", "dinner", "snack"],
-            Field(
-                description=(
-                    "Which meal bucket the entry rolls into on the user's "
-                    "nutrition page. Pick from explicit cues in the user's "
-                    "message ('for breakfast I had…' → breakfast), the time "
-                    "of day implied by context, or default to 'snack' for "
-                    "off-meal foods like coffee, fruit, or a protein bar."
-                ),
-            ),
-        ],
-        pantry_item_id: Annotated[
-            str | None,
-            Field(
-                default=None,
-                description=(
-                    "ID of a saved pantry item. Pass exactly one of "
-                    "pantry_item_id or recipe_id."
-                ),
-            ),
-        ] = None,
-        recipe_id: Annotated[
-            str | None,
-            Field(
-                default=None,
-                description=(
-                    "ID of a saved recipe. Pass exactly one of pantry_item_id "
-                    "or recipe_id. When the user says 'my usual breakfast' "
-                    "and you've matched it to a recipe, pass that recipe's ID."
-                ),
-            ),
-        ] = None,
-        consumed_at: Annotated[
-            str | None,
-            Field(
-                default=None,
-                description=(
-                    "RFC3339 UTC timestamp of when the user actually ate "
-                    "the food. Omit to default to the current server time."
-                ),
-            ),
-        ] = None,
-    ) -> dict[str, Any]:
-        """Log a single consumption event against a pantry item or recipe.
-
-        Returns the created log entry with denormalized macros frozen
-        at log time — a future edit to the pantry item or recipe will
-        not retroactively change this entry's totals.
-        """
-        if (pantry_item_id is None) == (recipe_id is None):
-            raise RuntimeError(
-                "log_consumption requires exactly one of pantry_item_id or recipe_id."
-            )
-        auth = _auth_header_or_raise()
-        try:
-            return await api.log_consumption(
-                auth,
-                pantry_item_id=pantry_item_id,
-                recipe_id=recipe_id,
-                quantity=quantity,
-                meal=meal,
-                consumed_at=consumed_at,
-            )
-        except APIError as e:
-            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
-
-    @mcp.tool
-    async def log_custom_meal(
-        name: Annotated[
-            str,
+    async def log_consumption_batch(
+        items: Annotated[
+            list[Item],
             Field(
                 min_length=1,
-                max_length=200,
                 description=(
-                    "What the user ate. Free-form text the user types or you "
-                    'extract from their message — "Chipotle chicken bowl", '
-                    '"Sweetgreen Harvest Bowl", "airport protein bar". '
-                    "Stored as-is on the log entry; appears in the user's "
-                    "nutrition log under that exact name."
+                    "Every food the user mentioned in their message, as one "
+                    "list. A snack of two foods is two items in one call; a "
+                    "mixed meal can combine pantry-backed and custom items. "
+                    "Set each item's `kind`: use 'pantry'/'recipe' when a "
+                    "saved item matches (check the pantry first), otherwise "
+                    "'custom' with your best-estimate macros."
                 ),
             ),
         ],
-        calories: Annotated[
-            float,
-            Field(ge=0, le=100_000, description="Total calories for the meal as the user ate it."),
-        ],
-        protein_g: Annotated[float, Field(ge=0, le=10_000, description="Total protein in grams.")],
-        fat_g: Annotated[float, Field(ge=0, le=10_000, description="Total fat in grams.")],
-        carbs_g: Annotated[
-            float, Field(ge=0, le=10_000, description="Total carbohydrates in grams.")
-        ],
-        meal: Annotated[
-            Literal["breakfast", "lunch", "dinner", "snack"],
-            Field(description="Meal bucket on the user's nutrition page."),
-        ],
-        consumed_at: Annotated[
-            str | None,
-            Field(default=None, description="RFC3339 UTC timestamp; omit for now."),
-        ] = None,
     ) -> dict[str, Any]:
-        """Log a one-off meal that isn't backed by a pantry item or recipe.
+        """Log everything the user ate in one message as a single call.
 
-        Use this when the user describes eating something they don't have
-        saved — restaurant meals, foods bought outside, anything one-off.
-        Always check `list_pantry_items` first; if there's a match, use
-        `log_consumption` against that match instead.
+        Collect EVERY food the user mentioned into one `items` list rather
+        than calling this tool once per food. Each item carries its own
+        `meal` bucket and optional `consumed_at`, so one call can span
+        breakfast + a snack or backfill several entries at different times.
 
-        Returns the created log entry with the user-typed name and macros
-        frozen on the row.
+        For each item, check `list_pantry_items` first: if a saved pantry
+        item or recipe matches, use kind "pantry"/"recipe" with its id and a
+        `quantity` of servings/batches (5 eggs against a 1-egg pantry item is
+        quantity=5; half a recipe is 0.5). Otherwise use kind "custom" with
+        the food's name and your best-estimate total macros as the user ate
+        them.
+
+        Logging is best-effort: each item is logged independently and the
+        response's `results`/`logged`/`failed` report which items (if any)
+        did not log, so you can tell the user. `meal` is one of breakfast,
+        lunch, dinner, snack. `consumed_at` is an RFC3339 UTC timestamp;
+        omit it to default to now.
         """
         auth = _auth_header_or_raise()
+        payload = [item.model_dump(exclude_none=True) for item in items]
         try:
-            return await api.log_custom_meal(
-                auth,
-                name=name,
-                calories=calories,
-                protein_g=protein_g,
-                fat_g=fat_g,
-                carbs_g=carbs_g,
-                meal=meal,
-                consumed_at=consumed_at,
-            )
+            return await api.log_consumption_batch(auth, items=payload)
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
 
@@ -179,8 +115,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             str,
             Field(
                 description=(
-                    "IANA timezone (e.g. America/Denver) the date params "
-                    "are interpreted in."
+                    "IANA timezone (e.g. America/Denver) the date params are interpreted in."
                 ),
             ),
         ],
@@ -189,8 +124,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             Field(
                 default=None,
                 description=(
-                    "Single calendar day, YYYY-MM-DD. Mutually exclusive "
-                    "with start_date/end_date."
+                    "Single calendar day, YYYY-MM-DD. Mutually exclusive with start_date/end_date."
                 ),
             ),
         ] = None,
@@ -249,8 +183,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             str,
             Field(
                 description=(
-                    "IANA timezone (e.g. America/Denver) the date params "
-                    "are interpreted in."
+                    "IANA timezone (e.g. America/Denver) the date params are interpreted in."
                 ),
             ),
         ],
@@ -259,8 +192,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             Field(
                 default=None,
                 description=(
-                    "Single calendar day, YYYY-MM-DD. Mutually exclusive "
-                    "with start_date/end_date."
+                    "Single calendar day, YYYY-MM-DD. Mutually exclusive with start_date/end_date."
                 ),
             ),
         ] = None,
