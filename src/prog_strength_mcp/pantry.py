@@ -50,7 +50,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
         Each item carries per-serving macros (calories, protein, fat,
         carbs), a serving size + unit (e.g. 1 + 'egg', 100 + 'g'), and
-        an ID you'll need to call log_consumption against. Soft-deleted
+        an ID you'll need to call log_consumption_batch against. Soft-deleted
         items are excluded server-side.
         """
         auth = _auth_header_or_raise()
@@ -64,15 +64,11 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         name: Annotated[
             str, Field(min_length=1, description="Display name, e.g. 'Eggland's Best Large Egg'.")
         ],
-        calories: Annotated[
-            float, Field(ge=0, description="Calories per serving. Non-negative.")
-        ],
+        calories: Annotated[float, Field(ge=0, description="Calories per serving. Non-negative.")],
         protein_g: Annotated[
             float, Field(ge=0, description="Grams of protein per serving. Non-negative.")
         ],
-        fat_g: Annotated[
-            float, Field(ge=0, description="Grams of fat per serving. Non-negative.")
-        ],
+        fat_g: Annotated[float, Field(ge=0, description="Grams of fat per serving. Non-negative.")],
         carbs_g: Annotated[
             float, Field(ge=0, description="Grams of carbs per serving. Non-negative.")
         ],
@@ -102,12 +98,12 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
         Use this when the user describes a food they expect to eat
         again. For a one-off restaurant meal, you can also create the
-        item here and immediately call log_consumption against the
+        item here and immediately call log_consumption_batch against the
         returned ID — the pantry will accumulate, which is the
         intended UX.
 
         Returns the created item including its server-assigned `id`,
-        which you'll pass to log_consumption.
+        which you'll pass to log_consumption_batch.
         """
         auth = _auth_header_or_raise()
         try:
