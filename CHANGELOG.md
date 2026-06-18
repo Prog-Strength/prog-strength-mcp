@@ -1,3 +1,10 @@
+# [0.21.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.20.1...v0.21.0) (2026-06-18)
+
+
+### Features
+
+* **nutrition:** replace single-item log tools with log_consumption_batch ([#12](https://github.com/Prog-Strength/prog-strength-mcp/issues/12)) ([c03ab75](https://github.com/Prog-Strength/prog-strength-mcp/commit/c03ab7560f10461ea43f4237d3eb37d56801013e))
+
 ## [0.20.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.20.0...v0.20.1) (2026-06-17)
 
 
