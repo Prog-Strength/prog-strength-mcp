@@ -13,6 +13,7 @@ from prog_strength_mcp import (
     recipes,
     running,
     steps,
+    training_snapshot,
     workouts,
 )
 from prog_strength_mcp.api_client import APIClient
@@ -43,6 +44,7 @@ nutrition_lookup.register(mcp, api)
 bodyweight.register(mcp, api)
 macro_goals.register(mcp, api)
 steps.register(mcp, api)
+training_snapshot.register(mcp, api)
 
 
 @mcp.custom_route("/health", methods=["GET"])

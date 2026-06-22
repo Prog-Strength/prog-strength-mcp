@@ -721,6 +721,38 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    # --- Training snapshot -------------------------------------------
+
+    async def get_training_snapshot(
+        self,
+        auth_header: str,
+        *,
+        timezone: str,
+        date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any]:
+        """GET /training-snapshot. `timezone` is a required IANA name;
+        supply either `date` or `start_date`/`end_date` (YYYY-MM-DD), or
+        omit dates for the trailing 7 local days. Returns the snapshot
+        object under `data`.
+        """
+        params: dict[str, str] = {"timezone": timezone}
+        if date:
+            params["date"] = date
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        resp = await self._client.get(
+            "/training-snapshot",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
 
 def _raise_for_status(resp: httpx.Response) -> None:
     """Convert a non-2xx API response into APIError, pulling the `error`
