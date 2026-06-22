@@ -1,3 +1,10 @@
+# [0.22.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.21.0...v0.22.0) (2026-06-22)
+
+
+### Features
+
+* **snapshot:** get_training_snapshot forwarder tool ([#13](https://github.com/Prog-Strength/prog-strength-mcp/issues/13)) ([b67179b](https://github.com/Prog-Strength/prog-strength-mcp/commit/b67179bd8eee2e1c501c3f23e5c8f46004651935))
+
 # [0.21.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.20.1...v0.21.0) (2026-06-18)
 
 
