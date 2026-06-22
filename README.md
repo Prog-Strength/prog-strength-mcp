@@ -86,26 +86,28 @@ Caddy serves `https://mcp.progstrength.fitness` and terminates TLS — the
 mcp container has no public ports.
 
 **Pipeline:** semantic-release in `.github/workflows/release.yml` tags
-and SSH-deploys on `feat:`/`fix:` commits to `main`. The deploy step
-SSHes into the EC2 host, `git pull`s `/home/ubuntu/prog-strength-mcp`,
-writes a minimal `.env` with just `APP_VERSION`, and runs
-`docker compose up --build -d`. No app secrets to wire in.
+on `feat:`/`fix:` commits to `main`, then deploys via SSM Run Command —
+no SSH, no inbound port 22. The deploy step assumes the shared OIDC role
+and `aws ssm send-command` invokes
+`/home/ubuntu/prog-strength-infra/deploy/mcp.sh`, which pulls the infra
+checkout (the compose file lives there), writes a minimal `.env`, and
+runs `docker compose pull/down/up`. No app secrets to wire in — auth
+comes from the agent's per-request `Authorization` header.
 
-**Required GitHub secrets** on this repo:
-
-| Secret            | Value                                        |
-| ----------------- | -------------------------------------------- |
-| `EC2_HOST`        | Same Elastic IP as the api repo.             |
-| `EC2_SSH_KEY`     | Same private key as the api repo.            |
+**Required GitHub secrets** on this repo: none for deploys. Deploys run
+via SSM Run Command using the shared OIDC role (`AWS_GHA_ROLE_ARN`, an
+org/shared secret) — no host-identity or SSH secret (`EC2_HOST` /
+`EC2_SSH_KEY`) is needed.
 
 **Host prerequisites** (handled by the infra repo's bootstrap on fresh
-hosts; do these once on the existing host):
+hosts; do this once on the existing host):
 
 ```sh
 docker network create prog-strength
-git clone https://github.com/Prog-Strength/prog-strength-mcp.git \
-  /home/ubuntu/prog-strength-mcp
 ```
+
+The mcp repo is **not** checked out on the host — its compose file lives
+in `prog-strength-infra` (`compose/mcp`), which the deploy script pulls.
 
 ## Layout
 
