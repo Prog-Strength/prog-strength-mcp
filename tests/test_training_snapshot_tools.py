@@ -13,6 +13,7 @@ import httpx
 import pytest
 import respx
 
+from prog_strength_mcp import training_snapshot
 from prog_strength_mcp.api_client import APIClient, APIError
 
 BASE_URL = "http://api.test"
@@ -77,3 +78,69 @@ async def test_get_training_snapshot_surfaces_api_error():
         with pytest.raises(APIError) as excinfo:
             await api.get_training_snapshot(AUTH, timezone="UTC")
     assert excinfo.value.status_code == 500
+
+
+# --- Tool boundary -----------------------------------------------------
+
+
+async def test_tool_requires_auth(monkeypatch):
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(training_snapshot, "get_http_headers", lambda **_: {})
+
+    class _ExplodingAPI:
+        async def get_training_snapshot(self, *a, **k):  # pragma: no cover
+            raise AssertionError("HTTP forwarding must not happen on missing auth")
+
+    mcp = FastMCP("test")
+    training_snapshot.register(mcp, _ExplodingAPI())
+    tool = await mcp.get_tool("get_training_snapshot")
+    with pytest.raises(RuntimeError, match="Authorization"):
+        await tool.fn(timezone="UTC")
+
+
+async def test_tool_maps_api_error(monkeypatch):
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(training_snapshot, "get_http_headers", lambda **_: {"authorization": AUTH})
+
+    class _FailingAPI:
+        async def get_training_snapshot(self, *a, **k):
+            raise APIError(500, "db exploded")
+
+    mcp = FastMCP("test")
+    training_snapshot.register(mcp, _FailingAPI())
+    tool = await mcp.get_tool("get_training_snapshot")
+    with pytest.raises(RuntimeError, match="500"):
+        await tool.fn(timezone="UTC")
+
+
+async def test_tool_forwards_all_params(monkeypatch):
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(training_snapshot, "get_http_headers", lambda **_: {"authorization": AUTH})
+    captured = {}
+
+    class _CaptureAPI:
+        async def get_training_snapshot(
+            self, auth, *, timezone, date=None, start_date=None, end_date=None
+        ):
+            captured.update(
+                auth=auth,
+                timezone=timezone,
+                date=date,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            return _SAMPLE
+
+    mcp = FastMCP("test")
+    training_snapshot.register(mcp, _CaptureAPI())
+    tool = await mcp.get_tool("get_training_snapshot")
+    result = await tool.fn(
+        timezone="America/Denver", start_date="2026-06-15", end_date="2026-06-21"
+    )
+    assert result == _SAMPLE
+    assert captured["auth"] == AUTH
+    assert captured["timezone"] == "America/Denver"
+    assert captured["start_date"] == "2026-06-15"
