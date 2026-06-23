@@ -1,3 +1,10 @@
+# [0.23.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.22.0...v0.23.0) (2026-06-23)
+
+
+### Features
+
+* **deploy:** deploy via SSM Run Command; retire SSH deploy key ([#14](https://github.com/Prog-Strength/prog-strength-mcp/issues/14)) ([8a10763](https://github.com/Prog-Strength/prog-strength-mcp/commit/8a10763e6552856050e5f33c1c4e8ddc4fb0f26e))
+
 # [0.22.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.21.0...v0.22.0) (2026-06-22)
 
 
