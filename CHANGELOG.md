@@ -1,3 +1,10 @@
+# [0.26.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.25.0...v0.26.0) (2026-07-03)
+
+
+### Features
+
+* add request_id tracking to all MCP HTTP responses ([#17](https://github.com/Prog-Strength/prog-strength-mcp/issues/17)) ([6ae6e2f](https://github.com/Prog-Strength/prog-strength-mcp/commit/6ae6e2f54b6614d1b1a0794b5a46986fd6f93c17))
+
 # [0.25.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.24.0...v0.25.0) (2026-07-03)
 
 
