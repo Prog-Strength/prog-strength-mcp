@@ -1,6 +1,6 @@
 """Planned-workouts domain: input models and MCP tools for creating,
-listing, editing, skipping, and (Phase 3/4) calendar-syncing and
-completing forward-looking planned workouts.
+listing, editing, skipping, deleting, and (Phase 3/4) calendar-syncing
+and completing forward-looking planned workouts.
 
 Mirrors the API's `/planned-workouts` surface. A planned workout is a
 FORWARD-LOOKING intention scheduled at a time — distinct from a logged
@@ -234,6 +234,22 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         auth = _auth_header_or_raise()
         try:
             return await api.skip_planned_workout(auth, planned_workout_id)
+        except APIError as e:
+            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+
+    @mcp.tool
+    async def delete_planned_workout(planned_workout_id: str) -> dict[str, Any]:
+        """Delete a planned workout the user no longer wants on the calendar.
+
+        Use this to REMOVE a plan entirely (e.g. it was scheduled by
+        mistake or is no longer relevant). If the user did not do the
+        session but wants the record kept, prefer skip_planned_workout.
+        The API also removes the plan's synced Google Calendar event.
+        Returns `{"deleted": true, "id": ...}` on success.
+        """
+        auth = _auth_header_or_raise()
+        try:
+            return await api.delete_planned_workout(auth, planned_workout_id)
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
 
