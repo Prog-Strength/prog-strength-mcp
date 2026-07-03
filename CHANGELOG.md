@@ -1,3 +1,10 @@
+# [0.24.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.23.0...v0.24.0) (2026-07-03)
+
+
+### Features
+
+* add calibrate_run_distance and set_run_environment tools ([#15](https://github.com/Prog-Strength/prog-strength-mcp/issues/15)) ([883d8a5](https://github.com/Prog-Strength/prog-strength-mcp/commit/883d8a5c8edb204a08b9ad605806b0a9ba1bffdf))
+
 # [0.23.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.22.0...v0.23.0) (2026-06-23)
 
 
