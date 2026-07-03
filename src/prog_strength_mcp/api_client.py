@@ -274,6 +274,21 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    async def delete_planned_workout(
+        self, auth_header: str, planned_workout_id: str
+    ) -> dict[str, Any]:
+        """DELETE /planned-workouts/{id}. The API removes the plan (and its
+        synced Google Calendar event, best-effort) and returns no payload;
+        synthesize a confirmation object so the model sees an explicit
+        outcome.
+        """
+        resp = await self._client.delete(
+            f"/planned-workouts/{planned_workout_id}",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        return {"deleted": True, "id": planned_workout_id}
+
     async def schedule_workout_to_calendar(
         self,
         auth_header: str,

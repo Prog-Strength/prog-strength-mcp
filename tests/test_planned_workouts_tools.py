@@ -257,6 +257,38 @@ async def test_skip_planned_workout_posts_and_unwraps():
     assert route.calls.last.request.headers["Authorization"] == AUTH
 
 
+# --- API client: delete_planned_workout --------------------------------
+
+
+@respx.mock
+async def test_delete_planned_workout_deletes_and_confirms():
+    route = respx.delete(f"{BASE_URL}/planned-workouts/pw_1a2").mock(
+        return_value=httpx.Response(
+            200, json={"message": "planned workout deleted", "data": None}
+        )
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.delete_planned_workout(AUTH, "pw_1a2")
+
+    # The API returns no body payload on delete; the client synthesizes a
+    # confirmation object so the model sees an explicit outcome.
+    assert result == {"deleted": True, "id": "pw_1a2"}
+    assert route.calls.last.request.headers["Authorization"] == AUTH
+
+
+@respx.mock
+async def test_delete_planned_workout_surfaces_api_error():
+    respx.delete(f"{BASE_URL}/planned-workouts/pw_1a2").mock(
+        return_value=httpx.Response(404, json={"error": "planned workout not found"})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        with pytest.raises(APIError) as excinfo:
+            await api.delete_planned_workout(AUTH, "pw_1a2")
+
+    assert excinfo.value.status_code == 404
+    assert excinfo.value.message == "planned workout not found"
+
+
 # --- API client: schedule_workout_to_calendar -------------------------
 
 
@@ -367,6 +399,9 @@ async def test_planned_workouts_tools_require_auth(monkeypatch):
         async def skip_planned_workout(self, *a, **k):  # pragma: no cover
             raise AssertionError("HTTP forwarding must not happen on missing auth")
 
+        async def delete_planned_workout(self, *a, **k):  # pragma: no cover
+            raise AssertionError("HTTP forwarding must not happen on missing auth")
+
         async def schedule_workout_to_calendar(self, *a, **k):  # pragma: no cover
             raise AssertionError("HTTP forwarding must not happen on missing auth")
 
@@ -380,6 +415,7 @@ async def test_planned_workouts_tools_require_auth(monkeypatch):
     list_tool = await mcp.get_tool("list_planned_workouts")
     update_tool = await mcp.get_tool("update_planned_workout")
     skip_tool = await mcp.get_tool("skip_planned_workout")
+    delete_tool = await mcp.get_tool("delete_planned_workout")
     schedule_tool = await mcp.get_tool("schedule_workout_to_calendar")
     complete_tool = await mcp.get_tool("complete_planned_workout")
 
@@ -394,6 +430,8 @@ async def test_planned_workouts_tools_require_auth(monkeypatch):
         await update_tool.fn(planned_workout_id="pw_1a2", name="x")
     with pytest.raises(RuntimeError, match="Authorization"):
         await skip_tool.fn(planned_workout_id="pw_1a2")
+    with pytest.raises(RuntimeError, match="Authorization"):
+        await delete_tool.fn(planned_workout_id="pw_1a2")
     with pytest.raises(RuntimeError, match="Authorization"):
         await schedule_tool.fn(planned_workout_id="pw_1a2")
     with pytest.raises(RuntimeError, match="Authorization"):
@@ -430,6 +468,9 @@ async def test_planned_workouts_tools_map_api_error(monkeypatch):
         async def skip_planned_workout(self, *a, **k):
             raise APIError(500, "db exploded")
 
+        async def delete_planned_workout(self, *a, **k):
+            raise APIError(500, "db exploded")
+
         async def schedule_workout_to_calendar(self, *a, **k):
             raise APIError(500, "db exploded")
 
@@ -443,6 +484,7 @@ async def test_planned_workouts_tools_map_api_error(monkeypatch):
     list_tool = await mcp.get_tool("list_planned_workouts")
     update_tool = await mcp.get_tool("update_planned_workout")
     skip_tool = await mcp.get_tool("skip_planned_workout")
+    delete_tool = await mcp.get_tool("delete_planned_workout")
     schedule_tool = await mcp.get_tool("schedule_workout_to_calendar")
     complete_tool = await mcp.get_tool("complete_planned_workout")
 
@@ -457,6 +499,8 @@ async def test_planned_workouts_tools_map_api_error(monkeypatch):
         await update_tool.fn(planned_workout_id="pw_1a2", name="x")
     with pytest.raises(RuntimeError, match="500"):
         await skip_tool.fn(planned_workout_id="pw_1a2")
+    with pytest.raises(RuntimeError, match="500"):
+        await delete_tool.fn(planned_workout_id="pw_1a2")
     with pytest.raises(RuntimeError, match="500"):
         await schedule_tool.fn(planned_workout_id="pw_1a2")
     with pytest.raises(RuntimeError, match="500"):
