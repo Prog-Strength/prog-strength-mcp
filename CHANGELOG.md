@@ -1,3 +1,10 @@
+# [0.25.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.24.0...v0.25.0) (2026-07-03)
+
+
+### Features
+
+* **planned-workouts:** delete_planned_workout tool ([#16](https://github.com/Prog-Strength/prog-strength-mcp/issues/16)) ([c48e67b](https://github.com/Prog-Strength/prog-strength-mcp/commit/c48e67b79a5a89173649a4f92e65e2f801f1f732))
+
 # [0.24.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.23.0...v0.24.0) (2026-07-03)
 
 
