@@ -721,6 +721,34 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    async def calibrate_run_distance(
+        self, auth_header: str, activity_id: str, *, distance_meters: float
+    ) -> dict[str, Any]:
+        """POST /activities/{id}/calibrate. Rescales an indoor run's distance and
+        all distance-derived fields server-side; returns the updated activity."""
+        resp = await self._client.post(
+            f"/activities/{activity_id}/calibrate",
+            json={"distance_meters": distance_meters},
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def set_run_environment(
+        self, auth_header: str, activity_id: str, *, environment: str
+    ) -> dict[str, Any]:
+        """PATCH /activities/{id} with an environment override
+        ('outdoor' | 'indoor'). Returns the updated activity summary."""
+        resp = await self._client.patch(
+            f"/activities/{activity_id}",
+            json={"environment": environment},
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
     # --- Training snapshot -------------------------------------------
 
     async def get_training_snapshot(

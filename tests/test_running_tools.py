@@ -252,3 +252,217 @@ async def test_max_effort_tool_maps_api_error(monkeypatch):
         await tool.fn()
     with pytest.raises(RuntimeError, match="500"):
         await tool.fn(distance_key="5k")
+
+
+# --- API client: calibrate_run_distance -------------------------------
+
+_CALIBRATED_ACTIVITY = {
+    "id": "act_9f2",
+    "activity_type": "running",
+    "environment": "indoor",
+    "distance_meters": 4828.03,
+    "raw_distance_meters": 5050.0,
+    "trackpoints": [{"distance_meters": 4828.03, "pace_sec_per_km": 300.0}],
+}
+
+
+@respx.mock
+async def test_calibrate_run_distance_posts_body_auth_and_unwraps():
+    """POSTs to /activities/{id}/calibrate with {distance_meters}, forwards
+    auth, and unwraps the updated activity from `data`.
+    """
+    route = respx.post(f"{BASE_URL}/activities/act_9f2/calibrate").mock(
+        return_value=httpx.Response(200, json={"data": _CALIBRATED_ACTIVITY})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.calibrate_run_distance(
+            AUTH, "act_9f2", distance_meters=4828.03
+        )
+
+    assert result == _CALIBRATED_ACTIVITY
+    req = route.calls.last.request
+    assert req.headers["Authorization"] == AUTH
+    import json as _json
+
+    assert _json.loads(req.content) == {"distance_meters": 4828.03}
+
+
+@respx.mock
+async def test_calibrate_run_distance_non_dict_data_yields_empty():
+    respx.post(f"{BASE_URL}/activities/act_9f2/calibrate").mock(
+        return_value=httpx.Response(200, json={"data": None})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.calibrate_run_distance(
+            AUTH, "act_9f2", distance_meters=4828.03
+        )
+
+    assert result == {}
+
+
+@respx.mock
+async def test_calibrate_run_distance_surfaces_api_error():
+    respx.post(f"{BASE_URL}/activities/act_9f2/calibrate").mock(
+        return_value=httpx.Response(
+            400, json={"error": "tag the run as indoor before calibrating"}
+        )
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        with pytest.raises(APIError) as excinfo:
+            await api.calibrate_run_distance(AUTH, "act_9f2", distance_meters=1.0)
+
+    assert excinfo.value.status_code == 400
+
+
+# --- API client: set_run_environment ----------------------------------
+
+_ENV_ACTIVITY = {
+    "id": "act_9f2",
+    "activity_type": "running",
+    "environment": "indoor",
+    "distance_meters": 5050.0,
+    "raw_distance_meters": 5050.0,
+}
+
+
+@respx.mock
+async def test_set_run_environment_patches_body_auth_and_unwraps():
+    """PATCHes /activities/{id} with {environment}, forwards auth, and
+    unwraps the updated activity from `data`.
+    """
+    route = respx.patch(f"{BASE_URL}/activities/act_9f2").mock(
+        return_value=httpx.Response(200, json={"data": _ENV_ACTIVITY})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        result = await api.set_run_environment(AUTH, "act_9f2", environment="indoor")
+
+    assert result == _ENV_ACTIVITY
+    req = route.calls.last.request
+    assert req.headers["Authorization"] == AUTH
+    import json as _json
+
+    assert _json.loads(req.content) == {"environment": "indoor"}
+
+
+@respx.mock
+async def test_set_run_environment_surfaces_api_error():
+    respx.patch(f"{BASE_URL}/activities/act_9f2").mock(
+        return_value=httpx.Response(400, json={"error": "invalid environment"})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        with pytest.raises(APIError) as excinfo:
+            await api.set_run_environment(AUTH, "act_9f2", environment="sideways")
+
+    assert excinfo.value.status_code == 400
+
+
+# --- Tool boundary: calibrate_run_distance ----------------------------
+
+
+async def test_calibrate_run_distance_tool_requires_auth(monkeypatch):
+    """Auth guard fires before any HTTP forwarding when no Authorization
+    header is present.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(running, "get_http_headers", lambda **_: {})
+
+    class _ExplodingAPI:
+        async def calibrate_run_distance(self, *a, **k):  # pragma: no cover
+            raise AssertionError("HTTP forwarding must not happen on missing auth")
+
+    mcp = FastMCP("test")
+    running.register(mcp, _ExplodingAPI())
+    tool = await mcp.get_tool("calibrate_run_distance")
+
+    with pytest.raises(RuntimeError, match="Authorization"):
+        await tool.fn(activity_id="act_9f2", distance_meters=4828.03)
+
+
+async def test_calibrate_run_distance_tool_maps_api_error(monkeypatch):
+    """An APIError from the client surfaces as a RuntimeError with status."""
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(
+        running, "get_http_headers", lambda **_: {"authorization": AUTH}
+    )
+
+    class _FailingAPI:
+        async def calibrate_run_distance(self, *a, **k):
+            raise APIError(400, "outdoor run not calibratable")
+
+    mcp = FastMCP("test")
+    running.register(mcp, _FailingAPI())
+    tool = await mcp.get_tool("calibrate_run_distance")
+
+    with pytest.raises(RuntimeError, match="400"):
+        await tool.fn(activity_id="act_9f2", distance_meters=4828.03)
+
+
+# --- Tool boundary: set_run_environment -------------------------------
+
+
+async def test_set_run_environment_tool_requires_auth(monkeypatch):
+    """Auth guard fires before any HTTP forwarding when no Authorization
+    header is present.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(running, "get_http_headers", lambda **_: {})
+
+    class _ExplodingAPI:
+        async def set_run_environment(self, *a, **k):  # pragma: no cover
+            raise AssertionError("HTTP forwarding must not happen on missing auth")
+
+    mcp = FastMCP("test")
+    running.register(mcp, _ExplodingAPI())
+    tool = await mcp.get_tool("set_run_environment")
+
+    with pytest.raises(RuntimeError, match="Authorization"):
+        await tool.fn(activity_id="act_9f2", environment="indoor")
+
+
+async def test_set_run_environment_tool_maps_api_error(monkeypatch):
+    """An APIError from the client surfaces as a RuntimeError with status."""
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(
+        running, "get_http_headers", lambda **_: {"authorization": AUTH}
+    )
+
+    class _FailingAPI:
+        async def set_run_environment(self, *a, **k):
+            raise APIError(400, "invalid environment")
+
+    mcp = FastMCP("test")
+    running.register(mcp, _FailingAPI())
+    tool = await mcp.get_tool("set_run_environment")
+
+    with pytest.raises(RuntimeError, match="400"):
+        await tool.fn(activity_id="act_9f2", environment="sideways")
+
+
+# --- Pass-through: new fields flow through a run-read verbatim ---------
+
+
+async def test_set_run_environment_tool_passes_through_new_fields(monkeypatch):
+    """A run-read response carrying `environment` and `raw_distance_meters`
+    is returned verbatim to the caller — MCP forwards API JSON as-is.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(
+        running, "get_http_headers", lambda **_: {"authorization": AUTH}
+    )
+
+    class _PassthroughAPI:
+        async def set_run_environment(self, *a, **k):
+            return dict(_ENV_ACTIVITY)
+
+    mcp = FastMCP("test")
+    running.register(mcp, _PassthroughAPI())
+    tool = await mcp.get_tool("set_run_environment")
+
+    result = await tool.fn(activity_id="act_9f2", environment="indoor")
+    assert result["environment"] == "indoor"
+    assert result["raw_distance_meters"] == 5050.0

@@ -12,10 +12,11 @@ Authorization is sourced from the inbound MCP request's `Authorization`
 header, the same pattern every other domain module uses.
 """
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
+from pydantic import Field
 
 from prog_strength_mcp.api_client import APIClient, APIError
 
@@ -107,6 +108,54 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         try:
             return await api.get_running_max_effort_estimate(
                 auth, distance_key=distance_key
+            )
+        except APIError as e:
+            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+
+    @mcp.tool
+    async def set_run_environment(
+        activity_id: Annotated[str, Field(description="The running activity ID to retag.")],
+        environment: Annotated[
+            Literal["outdoor", "indoor"],
+            Field(description="'indoor' for treadmill runs (no GPS), 'outdoor' for GPS runs."),
+        ],
+    ) -> dict[str, Any]:
+        """Tag a run as indoor (treadmill) or outdoor.
+
+        Indoor/treadmill runs are recorded without GPS; their distance comes from
+        the watch footpod and is user-calibrated. Tagging a run 'indoor' removes
+        it from running PRs / best-efforts; 'outdoor' restores it. You must tag a
+        run 'indoor' before its distance can be calibrated with
+        calibrate_run_distance. Returns the updated activity.
+        """
+        auth = _auth_header_or_raise()
+        try:
+            return await api.set_run_environment(auth, activity_id, environment=environment)
+        except APIError as e:
+            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+
+    @mcp.tool
+    async def calibrate_run_distance(
+        activity_id: Annotated[
+            str, Field(description="The indoor running activity ID to calibrate.")
+        ],
+        distance_meters: Annotated[
+            float, Field(gt=0, description="The corrected total distance in meters.")
+        ],
+    ) -> dict[str, Any]:
+        """Calibrate the distance of an indoor/treadmill run.
+
+        Treadmill footpod distance is often wrong; set the corrected total
+        distance (e.g. from the treadmill console) and the server rescales pace
+        and every trackpoint by a uniform factor in one step. Only allowed on runs
+        already tagged 'indoor' (use set_run_environment first if needed) — the
+        API rejects calibration of an outdoor run. Returns the updated activity
+        with rescaled trackpoints.
+        """
+        auth = _auth_header_or_raise()
+        try:
+            return await api.calibrate_run_distance(
+                auth, activity_id, distance_meters=distance_meters
             )
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
