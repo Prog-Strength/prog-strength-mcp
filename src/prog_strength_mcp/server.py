@@ -1,4 +1,5 @@
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -18,7 +19,17 @@ from prog_strength_mcp import (
 )
 from prog_strength_mcp.api_client import APIClient
 from prog_strength_mcp.config import Config
+from prog_strength_mcp.request_id import (
+    RequestIDMiddleware,
+    configure_logging,
+    current_request_id,
+)
 from prog_strength_mcp.version import SERVICE, VERSION
+
+# Install the request-id-aware log formatter before anything logs, so
+# every line the MCP server emits carries the request's correlation id
+# (or "-" when logged outside a request). See request_id.configure_logging.
+configure_logging()
 
 mcp: FastMCP = FastMCP("prog-strength-mcp")
 
@@ -56,6 +67,7 @@ async def health(_: Request) -> JSONResponse:
         {
             "service": SERVICE,
             "version": VERSION,
+            "request_id": current_request_id(),
             "message": "service is healthy",
         }
     )
@@ -74,6 +86,10 @@ def run() -> None:
         transport="http",
         host=_config.host,
         port=_config.port,
+        # Outermost after FastMCP's RequestContextMiddleware: mint-or-accept
+        # a request id, stamp X-Request-ID on every response, seed the
+        # ContextVar handlers read via current_request_id().
+        middleware=[Middleware(RequestIDMiddleware)],
         uvicorn_config={
             "proxy_headers": True,
             "forwarded_allow_ips": "*",
