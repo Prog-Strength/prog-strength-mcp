@@ -76,10 +76,14 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         distance_key: str | None = None,
     ) -> dict[str, Any]:
         """Return the user's PREDICTED max-effort time per standard running
-        distance — what they could run *right now* at full effort, modeled
-        from recent training. This is DISTINCT from get_running_best_efforts,
-        which reports the fastest the user has *actually* run; this is a
-        forward-looking estimate of current fitness, not a logged result.
+        distance — what they could run *right now* at full effort (estimator
+        v2.0.0). Estimates are floored at logged bests: they will never be
+        slower than the fastest time the user has already run at that distance.
+        Set birthdate and sex under Settings to sharpen demographic priors.
+
+        This is DISTINCT from get_running_best_efforts, which reports the
+        fastest the user has *actually* run; this is a forward-looking estimate
+        of current fitness, not a logged result.
 
         Omit `distance_key` for the cross-distance summary across all six
         standard distances (1mi, 2mi, 5k, 10k, half_marathon, marathon).
