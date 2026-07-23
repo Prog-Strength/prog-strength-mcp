@@ -1,3 +1,10 @@
+# [0.27.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.26.0...v0.27.0) (2026-07-23)
+
+
+### Features
+
+* **whoop:** add get_whoop_recovery MCP tool ([#19](https://github.com/Prog-Strength/prog-strength-mcp/issues/19)) ([8ef9b05](https://github.com/Prog-Strength/prog-strength-mcp/commit/8ef9b0508c6011bcd190475927d24a2b28f0a4d1))
+
 # [0.26.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.25.0...v0.26.0) (2026-07-03)
 
 
