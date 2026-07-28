@@ -95,7 +95,12 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
     @mcp.tool
     async def list_workouts() -> list[dict[str, Any]]:
-        """List the calling user's logged workouts, most recent first.
+        """List the calling user's logged workouts (strength sessions), most
+        recent first.
+
+        This is a strength-typed convenience over the unified activities
+        surface: it lists the `strength_training` slice of the user's
+        activities. For runs and other activity types, use list_activities.
 
         Identity is sourced from the inbound MCP session's Authorization
         header (the user's JWT); the API decodes the `sub` claim and
@@ -103,9 +108,10 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         cannot fetch another user's data.
 
         Returns the first page of results (the API's default limit, ~50
-        workouts). Pagination parameters are not exposed to the agent
-        yet — if you need older workouts beyond the first page, that's
-        a future feature on this tool.
+        activities). Each entry is a unified activity DTO — `id`,
+        `activity_type` ("strength_training"), `start_time`, and the
+        rendered `summary` card. Pagination is not exposed to the agent
+        yet — older workouts beyond the first page are a future feature.
         """
         auth = _auth_header_or_raise()
         try:
@@ -123,14 +129,18 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         ended_at: str | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
-        """Log a new workout for the calling user.
+        """Log a new workout (strength session) for the calling user.
+
+        This is a strength-typed convenience over the unified activities
+        surface: it creates a `strength_training` activity. To log a run or
+        another activity type, use log_activity instead.
 
         Identity is sourced from the inbound MCP session's Authorization
         header. Translate the user's natural-language description into
         structured sets first: resolve each exercise to a slug via
         list_exercises, then fill in reps, weight, and unit for every
         set. Bodyweight moves use weight=0. If the user didn't specify
-        a time, omit performed_at and the API will stamp it as "now".
+        a time, omit performed_at and it is stamped as "now".
 
         Args:
             exercises: Ordered list of exercises performed; their position
@@ -139,8 +149,15 @@ def register(mcp: FastMCP, api: APIClient) -> None:
                 "Workout - <date>" when omitted.
             performed_at: Optional RFC3339 start time, e.g.
                 '2026-05-16T18:30:00Z'. Defaults to now when omitted.
-            ended_at: Optional RFC3339 end time. Must be >= performed_at.
+            ended_at: Optional RFC3339 end time. Must be >= performed_at;
+                translated to the session's duration.
             notes: Optional free-text notes for the whole session.
+
+        Returns:
+            The created activity as a unified DTO: `id`, `activity_type`
+            ("strength_training"), `start_time`, the rendered `summary`
+            card, and strength `details` (the exercises/sets, with any
+            newly-set personal records reflected server-side).
         """
         if not exercises:
             raise ValueError("exercises must contain at least one entry")
