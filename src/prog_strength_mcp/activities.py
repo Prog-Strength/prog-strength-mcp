@@ -129,8 +129,6 @@ def register(mcp: FastMCP, api: APIClient) -> None:
     @mcp.tool
     async def list_activities(
         activity_type: str | None = None,
-        since: str | None = None,
-        until: str | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """List the calling user's activities across every type, most recent
@@ -140,21 +138,21 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         header. Use this for runs, walks, rides, and mixed histories; for a
         strength-only view, list_workouts is the strength-typed shortcut.
 
-        This list is INSTANT-based, not the timezone+local-date contract the
-        nutrition and planned-workout lists use: the API filters on absolute
-        RFC3339 instants, so pass `since`/`until` as explicit timestamps
-        (e.g. "the last 7 days" -> since = now minus 7 days). The two modes
-        are mutually exclusive — a `since`/`until` range cannot be combined
-        with `limit`; use one or the other.
+        This tool deliberately exposes NO date-range parameters: constructing
+        UTC bounds for a user-local day is a known bug source, so never
+        fabricate timestamps to scope this list. For date-scoped questions
+        ("what did I run on Tuesday?", "activities last week") prefer
+        get_training_snapshot, which takes a timezone plus local YYYY-MM-DD
+        dates and resolves the day boundaries server-side. Alternatively,
+        call this list with a generous `limit` and filter the returned
+        `start_time` values yourself.
 
         Args:
             activity_type: Optional filter to one registered type ('running',
                 'walking', 'cycling', 'other', 'strength_training'). Omit for
                 all types.
-            since: Optional RFC3339 lower bound (inclusive) on start_time.
-            until: Optional RFC3339 upper bound on start_time.
             limit: Optional max number of most-recent activities to return
-                (the API caps the page size). Do not combine with since/until.
+                (the API defaults to 50 and caps the page at 100).
 
         Returns:
             A list of unified activity DTOs: each carries `id`,
@@ -165,8 +163,6 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             return await api.list_activities(
                 auth,
                 activity_type=activity_type,
-                since=since,
-                until=until,
                 limit=limit,
             )
         except APIError as e:
