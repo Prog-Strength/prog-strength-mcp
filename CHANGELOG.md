@@ -1,3 +1,10 @@
+# [0.28.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.27.0...v0.28.0) (2026-07-28)
+
+
+### Features
+
+* unified activities tools (stage 2) ([#20](https://github.com/Prog-Strength/prog-strength-mcp/issues/20)) ([e8c21ca](https://github.com/Prog-Strength/prog-strength-mcp/commit/e8c21caa9a59366a03b76ef9f7f0dbfe8da1c1af))
+
 # [0.27.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.26.0...v0.27.0) (2026-07-23)
 
 
