@@ -1,3 +1,10 @@
+## [0.28.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.28.0...v0.28.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **activities:** drop date-range params from list_activities tool ([#21](https://github.com/Prog-Strength/prog-strength-mcp/issues/21)) ([f450578](https://github.com/Prog-Strength/prog-strength-mcp/commit/f45057850afef87df623c16cafab5870ffc331b9))
+
 # [0.28.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.27.0...v0.28.0) (2026-07-28)
 
 
