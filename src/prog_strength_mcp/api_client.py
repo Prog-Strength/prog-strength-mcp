@@ -10,6 +10,7 @@ Endpoints that don't require auth (e.g. `/exercises`) accept `None`
 and omit the header.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -53,25 +54,101 @@ class APIClient:
         await self.aclose()
 
     async def list_workouts(self, auth_header: str) -> list[dict[str, Any]]:
-        """GET /workouts. Returns the workouts list directly, unwrapped
+        """GET /activities?type=strength_training — the strength slice of the
+        unified activities surface. Returns the activities list, unwrapped
         from the API's `{service, message, data}` envelope.
 
-        The API's `data` is a pagination wrapper of the shape
-        `{items, total, limit, offset, has_more}`. We surface just
-        `items` to the agent because the tool currently returns a flat
-        list and pagination is a future feature; older clients that
-        kept consuming `data` directly as a list (no longer the case
-        in this repo) would break, but the API and this client deploy
-        together so that drift never lives across a deploy boundary.
+        Since the unified-activity-model migration (api PR #79) there is no
+        separate /workouts collection; a logged workout is a
+        strength_training activity. This method narrows the unified list to
+        that type so the `list_workouts` tool contract (a flat list of the
+        user's lifts) stays stable. The API's `data` is
+        `{activities, next_before}`; we surface just `activities` because the
+        tool returns a flat list and keyset pagination is a future feature.
         """
+        return await self.list_activities(auth_header, activity_type="strength_training")
+
+    # --- Unified activities ------------------------------------------
+
+    async def list_activities(
+        self,
+        auth_header: str,
+        *,
+        activity_type: str | None = None,
+        limit: int | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        before: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """GET /activities — the unified, type-agnostic activity list.
+
+        Returns the `activities` array unwrapped from the API's
+        `{service, message, data}` envelope (the `data` object is
+        `{activities, next_before}`; the keyset `next_before` cursor is
+        dropped, matching the flat-list convention the workout/running tools
+        already use). Optional filters map to the handler's query params:
+        `activity_type` -> `type` (one registered type), `limit`, and the
+        instant-based keyset/range params `since`/`until` (RFC3339) and
+        `before`. Note the /activities list is instant-based, NOT the
+        timezone+local-date contract the nutrition/planned-workout lists use.
+        """
+        params: dict[str, str] = {}
+        if activity_type:
+            params["type"] = activity_type
+        if limit is not None:
+            params["limit"] = str(limit)
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        if before:
+            params["before"] = before
         resp = await self._client.get(
-            "/workouts",
+            "/activities",
+            params=params,
             headers={"Authorization": auth_header},
         )
         _raise_for_status(resp)
         data = resp.json().get("data") or {}
-        items = data.get("items") if isinstance(data, dict) else None
+        items = data.get("activities") if isinstance(data, dict) else None
         return items if isinstance(items, list) else []
+
+    async def create_activity(
+        self, auth_header: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """POST /activities — the one create endpoint for every registered
+        activity type. `payload` is the unified write body forwarded verbatim
+        (`{activity_type, start_time, duration_seconds?, name?, notes?,
+        details?}`); the API dispatches per-type validation and persistence
+        through its registry. Returns the created activity DTO under `data`.
+
+        An unknown `activity_type` is a 422 whose message lists the valid
+        types; invalid type-specific `details` is a 400 — both surface as
+        APIError carrying the status and the API's error text.
+        """
+        resp = await self._client.post(
+            "/activities",
+            json=payload,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def get_activity(
+        self, auth_header: str, activity_id: str
+    ) -> dict[str, Any]:
+        """GET /activities/{id} — the full detail read for one activity of any
+        type. Returns the activity DTO under `data` (base fields plus the
+        type's `summary` and `details`).
+        """
+        resp = await self._client.get(
+            f"/activities/{quote(activity_id, safe='')}",
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
 
     async def list_exercises(
         self,
@@ -102,29 +179,35 @@ class APIClient:
         ended_at: str | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
-        """POST /workouts. Body shape mirrors the Go handler's
-        createWorkoutRequest. Omitted fields are left out so the API's
-        server-side defaults (name = "Workout - <date>", performed_at = now)
-        kick in.
-        """
-        body: dict[str, Any] = {"exercises": exercises}
-        if name is not None:
-            body["name"] = name
-        if performed_at is not None:
-            body["performed_at"] = performed_at
-        if ended_at is not None:
-            body["ended_at"] = ended_at
-        if notes is not None:
-            body["notes"] = notes
+        """POST /activities with `activity_type=strength_training` — the
+        strength convenience over the unified create surface (api PR #79
+        retired POST /workouts). The old workout args map onto the unified
+        body: `exercises` -> `details.exercises` (the descriptor's
+        create-request shape, order from slice position), `performed_at` ->
+        `start_time`, `name`/`notes` pass through, and `ended_at` ->
+        `duration_seconds` (computed client-side as end minus start, since
+        the unified body takes a duration, not an end instant).
 
-        resp = await self._client.post(
-            "/workouts",
-            json=body,
-            headers={"Authorization": auth_header},
-        )
-        _raise_for_status(resp)
-        data = resp.json().get("data")
-        return data if isinstance(data, dict) else {}
+        The unified surface REQUIRES start_time (unlike the old handler,
+        which defaulted it server-side), so an omitted `performed_at`
+        defaults to now here, preserving the tool's "omit = now" contract.
+        Returns the created activity DTO (`id`, `activity_type`, `summary`,
+        strength `details`) under `data`.
+        """
+        start_time = performed_at if performed_at is not None else _utc_now_rfc3339()
+        payload: dict[str, Any] = {
+            "activity_type": "strength_training",
+            "start_time": start_time,
+            "details": {"exercises": exercises},
+        }
+        if name is not None:
+            payload["name"] = name
+        if notes is not None:
+            payload["notes"] = notes
+        if ended_at is not None:
+            payload["duration_seconds"] = _duration_seconds(start_time, ended_at)
+
+        return await self.create_activity(auth_header, payload)
 
     # --- Planned workouts --------------------------------------------
 
@@ -822,6 +905,25 @@ class APIClient:
         _raise_for_status(resp)
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
+
+
+def _utc_now_rfc3339() -> str:
+    """Current instant as an RFC3339 string (UTC, `Z` suffix). Used to fill
+    the unified create surface's required start_time when the caller omits
+    it — a precise instant, not a local-day window, so it's unambiguous.
+    """
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _duration_seconds(start: str, end: str) -> int:
+    """Whole seconds between two RFC3339 instants (end minus start). The
+    unified create body carries a duration rather than an end time, so the
+    old workout `ended_at` is translated here. A negative result (end before
+    start) is forwarded as-is; the API validates duration_seconds >= 0.
+    """
+    start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+    return int((end_dt - start_dt).total_seconds())
 
 
 def _raise_for_status(resp: httpx.Response) -> None:

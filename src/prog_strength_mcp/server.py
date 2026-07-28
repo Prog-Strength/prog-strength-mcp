@@ -4,6 +4,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from prog_strength_mcp import (
+    activities,
     bodyweight,
     exercises,
     macro_goals,
@@ -46,6 +47,7 @@ api = APIClient(base_url=_config.api_base_url)
 # Each domain module owns its tools and registers them onto our FastMCP
 # instance — Python parallel of the API handlers' Mount(r) pattern.
 workouts.register(mcp, api)
+activities.register(mcp, api)
 exercises.register(mcp, api)
 pantry.register(mcp, api)
 planned_workouts.register(mcp, api)
