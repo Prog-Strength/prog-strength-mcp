@@ -7,7 +7,8 @@ Covers the tool boundary the way test_running_tools.py does:
   HTTP forwarding when the inbound request carries no Authorization header;
 * param forwarding — log_activity builds the unified body (defaulting
   start_time to now when omitted) and list_activities forwards its type /
-  range / limit filters;
+  limit filters (and exposes NO date-range params — house rule: the model
+  never constructs UTC bounds for a user-local day);
 * an APIError (e.g. a 422 unknown type) surfaces as a plain RuntimeError
   carrying the status.
 """
@@ -141,22 +142,7 @@ async def test_list_activities_forwards_type(monkeypatch):
 
 
 @respx.mock
-async def test_list_activities_forwards_range(monkeypatch):
-    route = respx.get(f"{BASE_URL}/activities").mock(
-        return_value=httpx.Response(200, json={"data": {"activities": [], "next_before": None}})
-    )
-    async with APIClient(base_url=BASE_URL) as api:
-        mcp = _register(monkeypatch, api)
-        tool = await mcp.get_tool("list_activities")
-        await tool.fn(since="2026-05-01T00:00:00Z", until="2026-05-31T23:59:59Z")
-
-    params = route.calls.last.request.url.params
-    assert params["since"] == "2026-05-01T00:00:00Z"
-    assert params["until"] == "2026-05-31T23:59:59Z"
-
-
-@respx.mock
-async def test_list_activities_forwards_limit_only_when_no_range(monkeypatch):
+async def test_list_activities_forwards_limit(monkeypatch):
     route = respx.get(f"{BASE_URL}/activities").mock(
         return_value=httpx.Response(200, json={"data": {"activities": [], "next_before": None}})
     )
@@ -171,12 +157,23 @@ async def test_list_activities_forwards_limit_only_when_no_range(monkeypatch):
     assert "until" not in params
 
 
+async def test_list_activities_exposes_no_date_range_params(monkeypatch):
+    """The tool contract deliberately has NO since/until/before/date params —
+    the model must never construct UTC bounds for a user-local day (house
+    rule); date-scoped questions route through get_training_snapshot.
+    """
+    mcp = _register(monkeypatch, _ExplodingAPI())
+    tool = await mcp.get_tool("list_activities")
+    props = tool.parameters.get("properties", {})
+    assert set(props) == {"activity_type", "limit"}
+
+
 async def test_list_activities_maps_api_error(monkeypatch):
     class _FailingAPI:
         async def list_activities(self, *a, **k):
-            raise APIError(400, "since/until cannot be combined with limit/before")
+            raise APIError(400, "limit must be a positive integer")
 
     mcp = _register(monkeypatch, _FailingAPI())
     tool = await mcp.get_tool("list_activities")
     with pytest.raises(RuntimeError, match="400"):
-        await tool.fn(since="2026-05-01T00:00:00Z", limit=5)
+        await tool.fn(limit=-1)

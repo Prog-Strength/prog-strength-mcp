@@ -91,6 +91,12 @@ class APIClient:
         instant-based keyset/range params `since`/`until` (RFC3339) and
         `before`. Note the /activities list is instant-based, NOT the
         timezone+local-date contract the nutrition/planned-workout lists use.
+
+        `since`/`until`/`before` are deliberately NOT exposed on the
+        agent-facing list_activities tool — the model must never construct
+        UTC bounds for a user-local day itself (house rule). They're kept
+        here for internal/future use, e.g. once the API grows a
+        timezone+local-date range mode on this list.
         """
         params: dict[str, str] = {}
         if activity_type:
