@@ -30,8 +30,10 @@ just `list_exercises`) don't require auth.
 | Name             | Description                                            |
 | ---------------- | ------------------------------------------------------ |
 | `list_exercises` | Public catalog browse. Optional `muscle_group` and `equipment` filters. |
-| `list_workouts`  | The calling user's logged workouts (capped at 50, most recent first). Identity from `Authorization` header. |
-| `create_workout` | Log a new workout for the calling user. Identity from `Authorization` header. |
+| `log_activity`   | Log an activity of any registered type (running, walking, cycling, other, strength_training) over the unified `/activities` surface. Type-specific `details` forwarded verbatim. |
+| `list_activities`| List the calling user's activities across all types, most recent first. Instant-based `since`/`until`/`limit` filters and an optional `activity_type`. |
+| `list_workouts`  | Strength-typed convenience over `list_activities`: the calling user's logged workouts (capped at 50, most recent first). Identity from `Authorization` header. |
+| `create_workout` | Strength-typed convenience over `log_activity`: log a new workout for the calling user. Identity from `Authorization` header. |
 
 ## Local development
 
