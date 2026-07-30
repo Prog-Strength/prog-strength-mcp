@@ -2,7 +2,7 @@
 unified `/activities` surface (api PR #79).
 
 `log_activity` and `list_activities` are the generic front doors for every
-registered activity type — running, walking, cycling, other, and
+registered activity type — running, walking, cycling, hiking, other, and
 strength_training. The strength-typed conveniences (`create_workout`,
 `list_workouts`) and the running read tools stay where they are; this module
 adds the type-parameterized pair the agent uses for anything else (and for
@@ -60,8 +60,8 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             Field(
                 description=(
                     "The activity type. Currently registered: 'running', "
-                    "'walking', 'cycling', 'other', 'strength_training'. The "
-                    "registry may grow; an unknown type returns an error whose "
+                    "'walking', 'cycling', 'hiking', 'other', 'strength_training'. "
+                    "The registry may grow; an unknown type returns an error whose "
                     "message lists the valid set. For strength sessions, prefer "
                     "the create_workout tool (same result, workout-shaped args)."
                 )
@@ -80,7 +80,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
         The `details` payload is type-specific and forwarded to the API
         verbatim, where the type's descriptor validates it:
-          - endurance types ('running', 'walking', 'cycling') expect
+          - endurance types ('running', 'walking', 'cycling', 'hiking') expect
             `{"distance_meters": <positive number>, ...}` — distance is
             required for these; optional keys include `avg_pace_sec_per_km`,
             `elevation_gain_meters`, `environment` ('outdoor'|'indoor').
@@ -149,8 +149,8 @@ def register(mcp: FastMCP, api: APIClient) -> None:
 
         Args:
             activity_type: Optional filter to one registered type ('running',
-                'walking', 'cycling', 'other', 'strength_training'). Omit for
-                all types.
+                'walking', 'cycling', 'hiking', 'other', 'strength_training').
+                Omit for all types.
             limit: Optional max number of most-recent activities to return
                 (the API defaults to 50 and caps the page at 100).
 
