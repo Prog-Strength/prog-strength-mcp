@@ -5,6 +5,7 @@ from starlette.responses import JSONResponse
 
 from prog_strength_mcp import (
     activities,
+    blood_pressure,
     bodyweight,
     exercises,
     macro_goals,
@@ -56,6 +57,7 @@ running.register(mcp, api)
 nutrition.register(mcp, api)
 nutrition_lookup.register(mcp, api)
 bodyweight.register(mcp, api)
+blood_pressure.register(mcp, api)
 macro_goals.register(mcp, api)
 steps.register(mcp, api)
 training_snapshot.register(mcp, api)
