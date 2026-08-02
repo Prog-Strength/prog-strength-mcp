@@ -616,6 +616,56 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, list) else []
 
+    # --- Blood pressure ----------------------------------------------
+
+    async def log_blood_pressure(
+        self,
+        auth_header: str,
+        *,
+        systolic: int,
+        diastolic: int,
+        pulse: int | None = None,
+        measured_at: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /blood-pressure. pulse/measured_at omitted when None;
+        measured_at defaults to now server-side.
+        """
+        body: dict[str, Any] = {"systolic": systolic, "diastolic": diastolic}
+        if pulse is not None:
+            body["pulse"] = pulse
+        if measured_at is not None:
+            body["measured_at"] = measured_at
+        resp = await self._client.post(
+            "/blood-pressure",
+            json=body,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
+    async def list_blood_pressure(
+        self,
+        auth_header: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """GET /blood-pressure. since/until are RFC3339 bounds on measured_at."""
+        params: dict[str, str] = {}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        resp = await self._client.get(
+            "/blood-pressure",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, list) else []
+
     # --- Steps -------------------------------------------------------
 
     async def log_steps(
