@@ -1,3 +1,10 @@
+# [0.29.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.28.1...v0.29.0) (2026-08-02)
+
+
+### Features
+
+* **blood_pressure:** add MCP module forwarding /blood-pressure ([#23](https://github.com/Prog-Strength/prog-strength-mcp/issues/23)) ([e735500](https://github.com/Prog-Strength/prog-strength-mcp/commit/e735500400946d873fede422e8419eabba4813be))
+
 ## [0.28.1](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.28.0...v0.28.1) (2026-07-28)
 
 
