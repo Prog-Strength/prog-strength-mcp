@@ -336,18 +336,47 @@ async def test_get_activity_without_weather_has_no_weather_key(monkeypatch):
 @pytest.mark.parametrize("status", ["no_coordinates", "unavailable"])
 @respx.mock
 async def test_get_activity_passes_non_ok_weather_through(monkeypatch, status):
-    """A non-`ok` row carries no readings, so there is nothing to convert —
-    inventing Fahrenheit fields would be inventing a measurement.
+    """The STATUS is what gates the conversion, not the absence of readings.
+
+    The row is given real readings on purpose: a fixture with only a status
+    would come back unconverted even with the gate deleted, so it could never
+    fail. A non-`ok` status means the provider disowned the hour — converting
+    whatever numbers rode along would be dressing up a measurement the API
+    already declared untrustworthy.
     """
+    weather = {"status": status, "temp_c": 31.1, "wind_kmh": 14.5}
     respx.get(f"{BASE_URL}/activities/act_run_1").mock(
-        return_value=httpx.Response(200, json={"data": _detail_with(weather={"status": status})})
+        return_value=httpx.Response(200, json={"data": _detail_with(weather=weather)})
     )
     async with APIClient(base_url=BASE_URL) as api:
         mcp = _register(monkeypatch, api)
         tool = await mcp.get_tool("get_activity")
         result = await tool.fn(activity_id="act_run_1")
 
-    assert result["weather"] == {"status": status}
+    assert result["weather"] == weather
+    assert "temp_f" not in result["weather"]
+    assert "wind_mph" not in result["weather"]
+
+
+@respx.mock
+async def test_get_activity_skips_a_boolean_in_a_numeric_weather_field(monkeypatch):
+    """`bool` is a subclass of `int` in Python, so an unguarded conversion
+    would quietly turn a stray `true` into 33.8 °F — a number the model would
+    have no reason to doubt. A non-number is left exactly as the API sent it
+    and grows no imperial twin, while a real reading beside it still converts.
+    """
+    weather = {"status": "ok", "temp_c": True, "wind_kmh": 14.5}
+    respx.get(f"{BASE_URL}/activities/act_run_1").mock(
+        return_value=httpx.Response(200, json={"data": _detail_with(weather=weather)})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        mcp = _register(monkeypatch, api)
+        tool = await mcp.get_tool("get_activity")
+        result = await tool.fn(activity_id="act_run_1")
+
+    assert result["weather"]["temp_c"] is True
+    assert "temp_f" not in result["weather"]
+    assert result["weather"]["wind_mph"] == pytest.approx(9.0)
 
 
 async def test_get_activity_does_not_mutate_the_payload(monkeypatch):
