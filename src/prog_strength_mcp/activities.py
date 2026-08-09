@@ -1,12 +1,12 @@
 """Activities domain: the canonical, type-agnostic MCP tools over the
 unified `/activities` surface (api PR #79).
 
-`log_activity` and `list_activities` are the generic front doors for every
-registered activity type — running, walking, cycling, hiking, other, and
-strength_training. The strength-typed conveniences (`create_workout`,
-`list_workouts`) and the running read tools stay where they are; this module
-adds the type-parameterized pair the agent uses for anything else (and for
-strength too, if it prefers the explicit form).
+`log_activity`, `list_activities`, and `get_activity` are the generic front
+doors for every registered activity type — running, walking, cycling, hiking,
+other, and strength_training. The strength-typed conveniences
+(`create_workout`, `list_workouts`) and the running read tools stay where they
+are; this module adds the type-parameterized set the agent uses for anything
+else (and for strength too, if it prefers the explicit form).
 
 Authorization is sourced from the inbound MCP request's `Authorization`
 header, the same pattern every other domain module uses.
@@ -43,6 +43,80 @@ def _now_rfc3339() -> str:
     precise instant here — not a local-day window, so it's unambiguous.
     """
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# Detail-DTO keys dropped before the activity reaches the model.
+#
+# `trackpoints` is hundreds of per-second GPS/heart-rate samples and `route`
+# is a serialized GeoJSON geometry. Both exist to draw a map: there is
+# nothing in either one a language model can reason about, and on a long run
+# they would dominate the response and crowd the actual conversation out of
+# the context window. Everything derived from them that IS reasonable to
+# reason about — `splits`, `strip_summary`, `heart_rate_zones`, `intervals` —
+# is already an aggregate and is kept.
+_RENDERING_ONLY_KEYS = frozenset({"trackpoints", "route"})
+
+
+def _number(value: Any) -> float | None:
+    """`value` as a float, or None when it's absent or not a number.
+
+    Every weather reading field is optional on the wire (the API omits the
+    null ones), so any single one can be missing from an otherwise-`ok` row.
+    `bool` is excluded explicitly because it is an `int` in Python.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
+def _celsius_to_fahrenheit(celsius: float) -> float:
+    return round(celsius * 9 / 5 + 32, 1)
+
+
+def _kmh_to_mph(kmh: float) -> float:
+    return round(kmh / 1.609344, 1)  # a mile is exactly 1.609344 km
+
+
+# metric key -> (imperial key, conversion). The API serves weather metric,
+# following the raw-measurement convention of the rest of the activity DTO
+# (`distance_meters` and friends) and leaving display units to the client.
+_WEATHER_IMPERIAL_FIELDS = {
+    "temp_c": ("temp_f", _celsius_to_fahrenheit),
+    "feels_like_c": ("feels_like_f", _celsius_to_fahrenheit),
+    "dew_point_c": ("dew_point_f", _celsius_to_fahrenheit),
+    "wind_kmh": ("wind_mph", _kmh_to_mph),
+}
+
+
+def _dual_unit_weather(weather: dict[str, Any]) -> dict[str, Any]:
+    """A copy of the weather block carrying imperial fields beside the metric
+    ones the API stores.
+
+    Two multiplications here remove an entire class of quiet arithmetic error
+    from the model's answer — it never has to convert °C or km/h itself. A
+    field the API omitted stays omitted rather than gaining an invented 0.0.
+    """
+    out = dict(weather)
+    for metric_key, (imperial_key, convert) in _WEATHER_IMPERIAL_FIELDS.items():
+        value = _number(weather.get(metric_key))
+        if value is not None:
+            out[imperial_key] = convert(value)
+    return out
+
+
+def _for_agent(activity: dict[str, Any]) -> dict[str, Any]:
+    """The detail DTO as the model should see it: rendering data dropped,
+    weather in both unit systems. Builds new dicts throughout, so the payload
+    handed in is never mutated.
+    """
+    out = {k: v for k, v in activity.items() if k not in _RENDERING_ONLY_KEYS}
+    weather = out.get("weather")
+    # Absence is the answer, not an error: an activity with no stored reading
+    # simply has no `weather` key, and a non-`ok` row (no GPS, or the provider
+    # had nothing for that hour) carries a status and no readings to convert.
+    if isinstance(weather, dict) and weather.get("status") == "ok":
+        out["weather"] = _dual_unit_weather(weather)
+    return out
 
 
 def register(mcp: FastMCP, api: APIClient) -> None:
@@ -167,3 +241,65 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             )
         except APIError as e:
             raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+
+    @mcp.tool
+    async def get_activity(
+        activity_id: Annotated[
+            str,
+            Field(
+                description=(
+                    "The activity's ID, as returned by list_activities or "
+                    "get_training_snapshot. Never guess one."
+                )
+            ),
+        ],
+    ) -> dict[str, Any]:
+        """Read ONE activity in full — the detail behind a list_activities entry.
+
+        Identity is sourced from the inbound MCP session's Authorization
+        header; the API enforces ownership, so an ID that doesn't exist or
+        isn't the caller's surfaces as a not-found error.
+
+        Use this for any question about a single session that the list card
+        doesn't answer: splits, heart-rate zones, intervals, elevation, plan
+        linkage, notes — and, for outdoor GPS activities, the weather at the
+        moment it started. Get the ID from list_activities (or
+        get_training_snapshot) first.
+
+        Two things about the shape of the response are deliberate:
+
+        - `trackpoints` and `route` are OMITTED. They are per-second samples
+          and a GeoJSON geometry — map-drawing data with nothing in it a model
+          can reason about, and on a long run they would dwarf the rest of the
+          response. Every aggregate derived from them is kept (`splits`,
+          `strip_summary`, `heart_rate_zones`, `intervals`), so their absence
+          is never evidence that the activity had no GPS.
+        - `weather`, when present, is DUAL-UNIT: `temp_c` and `temp_f`,
+          `feels_like_c`/`feels_like_f`, `dew_point_c`/`dew_point_f`,
+          `wind_kmh`/`wind_mph`, plus `humidity` (%), `wind_deg` (the
+          direction the wind came FROM), `precip_mm`, `condition`, and `icon`.
+          Quote whichever unit system the user speaks in; never convert
+          yourself.
+
+        The `weather` key is simply absent when no reading was ever stored —
+        indoor sessions, activities without GPS, and anything imported before
+        capture existed. That means the conditions are unknown, not that
+        something went wrong. A `weather.status` other than "ok" means the
+        same thing and carries no readings.
+
+        Args:
+            activity_id: The activity to read.
+
+        Returns:
+            The unified activity DTO — `id`, `activity_type`, `start_time`,
+            the rendered `summary` card, the type's `details`, and whichever
+            of `splits`, `strip_summary`, `heart_rate_zones`, `intervals`, and
+            `weather` this activity has — with `trackpoints` and `route`
+            removed.
+        """
+        auth = _auth_header_or_raise()
+        try:
+            activity = await api.get_activity(auth, activity_id)
+        except APIError as e:
+            raise RuntimeError(f"API error ({e.status_code}): {e.message}") from e
+        return _for_agent(activity)
