@@ -1,3 +1,10 @@
+# [0.30.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.29.0...v0.30.0) (2026-08-09)
+
+
+### Features
+
+* **mcp:** get_activity tool exposing the full activity detail read ([#24](https://github.com/Prog-Strength/prog-strength-mcp/issues/24)) ([5c16f35](https://github.com/Prog-Strength/prog-strength-mcp/commit/5c16f35dc44aaf141f7ddce972f276c214674598))
+
 # [0.29.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.28.1...v0.29.0) (2026-08-02)
 
 
