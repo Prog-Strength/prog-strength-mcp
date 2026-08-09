@@ -32,6 +32,7 @@ just `list_exercises`) don't require auth.
 | `list_exercises` | Public catalog browse. Optional `muscle_group` and `equipment` filters. |
 | `log_activity`   | Log an activity of any registered type (running, walking, cycling, hiking, other, strength_training) over the unified `/activities` surface. Type-specific `details` forwarded verbatim. |
 | `list_activities`| List the calling user's activities across all types, most recent first. Optional `activity_type` filter and `limit`. No date-range params — date-scoped questions go through `get_training_snapshot` (timezone-aware). |
+| `get_activity`   | Read one activity in full by ID — splits, heart-rate zones, intervals, plan linkage, and the stored weather. `trackpoints` and `route` are stripped (rendering data that would dominate the response); weather comes back in both unit systems. |
 | `list_workouts`  | Strength-typed convenience over `list_activities`: the calling user's logged workouts (capped at 50, most recent first). Identity from `Authorization` header. |
 | `create_workout` | Strength-typed convenience over `log_activity`: log a new workout for the calling user. Identity from `Authorization` header. |
 
