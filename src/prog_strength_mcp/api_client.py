@@ -761,6 +761,32 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
+    async def get_whoop_sleep(
+        self,
+        auth_header: str,
+        *,
+        timezone: str,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> dict[str, Any]:
+        """GET /whoop/sleep. timezone (IANA) is required; since/until are
+        YYYY-MM-DD local-date bounds (both inclusive, optional). Returns the
+        object under `data` (a dict with a `sleep` list). Durations in the
+        records are milliseconds, forwarded verbatim as Whoop sent them."""
+        params: dict[str, str] = {"timezone": timezone}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        resp = await self._client.get(
+            "/whoop/sleep",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        _raise_for_status(resp)
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) else {}
+
     # --- Recipes -----------------------------------------------------
 
     async def list_recipes(self, auth_header: str) -> list[dict[str, Any]]:
