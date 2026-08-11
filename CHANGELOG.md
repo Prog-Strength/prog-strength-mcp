@@ -1,3 +1,10 @@
+# [0.31.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.30.0...v0.31.0) (2026-08-11)
+
+
+### Features
+
+* **mcp:** add the get_whoop_sleep tool ([#25](https://github.com/Prog-Strength/prog-strength-mcp/issues/25)) ([071142e](https://github.com/Prog-Strength/prog-strength-mcp/commit/071142e898835303f0ecfd92fd7a040f666f68b6))
+
 # [0.30.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.29.0...v0.30.0) (2026-08-09)
 
 
