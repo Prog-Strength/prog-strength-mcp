@@ -5,11 +5,15 @@ Two boundaries are exercised:
 * The API client (`get_whoop_recovery`, `get_whoop_sleep`): HTTP is
   mocked with respx and we assert the path/method/params/headers and
   that the payload under `data` is forwarded verbatim.
-* The MCP tool boundary: each registered tool raises a `RuntimeError`
-  mentioning Authorization when the inbound request carries no
-  Authorization header (an `_ExplodingAPI` sentinel raises if forwarding
-  is attempted), and surfaces an `APIError` from the client as a
-  `RuntimeError` carrying the status code.
+* The MCP tool boundary: each registered tool forwards the inbound
+  Authorization header and every date argument to *its own* client
+  method and hands the result back unchanged; `timezone` is required
+  (and `since`/`until` optional) in the schema FastMCP generates from
+  the signature; each raises a `RuntimeError` mentioning Authorization
+  when the inbound request carries no Authorization header (an
+  `_ExplodingAPI` sentinel raises if forwarding is attempted), and
+  surfaces an `APIError` from the client as a `RuntimeError` carrying
+  the status code.
 """
 
 import httpx
@@ -83,6 +87,20 @@ async def test_get_whoop_recovery_forwards_range_and_unwraps_data():
     assert req.url.params["timezone"] == "America/Denver"
     assert req.url.params["since"] == "2026-06-01"
     assert req.url.params["until"] == "2026-06-14"
+
+
+@respx.mock
+async def test_get_whoop_recovery_omits_unset_bounds():
+    route = respx.get(f"{BASE_URL}/whoop/recovery").mock(
+        return_value=httpx.Response(200, json={"data": {"recovery": []}})
+    )
+    async with APIClient(base_url=BASE_URL) as api:
+        await api.get_whoop_recovery(AUTH, timezone="America/Denver")
+
+    params = route.calls.last.request.url.params
+    assert params["timezone"] == "America/Denver"
+    assert "since" not in params
+    assert "until" not in params
 
 
 @respx.mock
@@ -168,6 +186,98 @@ async def test_get_whoop_sleep_surfaces_api_error():
 
     assert excinfo.value.status_code == 500
     assert excinfo.value.message == "db exploded"
+
+
+# --- Tool boundary: each tool forwards to its own client method -------
+
+
+async def test_get_whoop_recovery_tool_forwards_args(monkeypatch):
+    """The recovery tool calls `api.get_whoop_recovery` — not the sleep
+    method — passing the inbound Authorization header and every date
+    argument by keyword, and returns the client's payload unchanged.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(whoop, "get_http_headers", lambda **_: {"authorization": AUTH})
+
+    sentinel = {"recovery": [_SAMPLE_RECORD]}
+
+    class _StubAPI:
+        async def get_whoop_recovery(self, auth_header, *, timezone, since, until):
+            assert auth_header == AUTH
+            assert timezone == "America/Denver"
+            assert since == "2026-06-01"
+            assert until == "2026-06-14"
+            return sentinel
+
+        async def get_whoop_sleep(self, *a, **k):  # pragma: no cover
+            raise AssertionError("the recovery tool must not call get_whoop_sleep")
+
+    mcp = FastMCP("test")
+    whoop.register(mcp, _StubAPI())
+    recovery_tool = await mcp.get_tool("get_whoop_recovery")
+
+    result = await recovery_tool.fn(
+        timezone="America/Denver",
+        since="2026-06-01",
+        until="2026-06-14",
+    )
+    assert result is sentinel
+
+
+async def test_get_whoop_sleep_tool_forwards_args(monkeypatch):
+    """The sleep tool calls `api.get_whoop_sleep` — not the recovery
+    method it was modelled on — passing the inbound Authorization header
+    and every date argument by keyword, and returns the client's payload
+    unchanged.
+    """
+    from fastmcp import FastMCP
+
+    monkeypatch.setattr(whoop, "get_http_headers", lambda **_: {"authorization": AUTH})
+
+    sentinel = {"sleep": [_SAMPLE_SLEEP_RECORD]}
+
+    class _StubAPI:
+        async def get_whoop_sleep(self, auth_header, *, timezone, since, until):
+            assert auth_header == AUTH
+            assert timezone == "America/Denver"
+            assert since == "2026-06-01"
+            assert until == "2026-06-14"
+            return sentinel
+
+        async def get_whoop_recovery(self, *a, **k):  # pragma: no cover
+            raise AssertionError("the sleep tool must not call get_whoop_recovery")
+
+    mcp = FastMCP("test")
+    whoop.register(mcp, _StubAPI())
+    sleep_tool = await mcp.get_tool("get_whoop_sleep")
+
+    result = await sleep_tool.fn(
+        timezone="America/Denver",
+        since="2026-06-01",
+        until="2026-06-14",
+    )
+    assert result is sentinel
+
+
+# --- Tool boundary: the generated schema makes timezone required ------
+
+
+async def test_whoop_tool_schemas_require_only_timezone():
+    """`timezone` is required and `since`/`until` optional in the JSON
+    schema FastMCP derives from each signature (`Tool.parameters`, sent
+    to the model as the tool's `inputSchema`). The tests around this one
+    invoke `.fn` directly and so never exercise that schema.
+    """
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("test")
+    whoop.register(mcp, object())
+
+    for name in ("get_whoop_recovery", "get_whoop_sleep"):
+        schema = (await mcp.get_tool(name)).parameters
+        assert schema["required"] == ["timezone"], name
+        assert set(schema["properties"]) == {"timezone", "since", "until"}, name
 
 
 # --- Tool boundary: Authorization is required before any HTTP call ----
