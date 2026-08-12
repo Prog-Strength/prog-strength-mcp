@@ -46,8 +46,7 @@ def register(mcp: FastMCP, api: APIClient) -> None:
                 min_length=1,
                 max_length=64,
                 description=(
-                    "The user's IANA timezone, e.g. 'America/Denver'. The "
-                    "agent supplies this automatically — never guess one."
+                    "IANA timezone name, e.g. 'America/Denver'. Required — never guess one."
                 ),
             ),
         ],
@@ -67,28 +66,20 @@ def register(mcp: FastMCP, api: APIClient) -> None:
         """Get the weather forecast for the user's saved location, or for a
         place they name.
 
-        Returns `current` conditions, an `hourly` strip, `today`'s high/low
-        and sun times, and a `daily` multi-day forecast.
-
-        Horizons differ and matter: `hourly` covers roughly the next 20
-        hours only, while `daily` covers about 8 days. There is no hour-level
-        data past the end of `hourly`.
+        `current` holds conditions now and `today` the high/low and sun
+        times; `hourly` covers roughly the next 20 hours and `daily` about 8
+        days. There is no hour-level data past the end of `hourly`.
 
         Field semantics: `units` states which temperature and wind units every
-        number in the payload is already in (they follow the user's distance
-        preference) — nothing here needs converting. `precip_chance` is a
-        percentage, not a probability. `sunrise` and `sunset` are RFC3339 UTC
-        instants that bound when a session is possible in daylight.
-        `location.id` is empty for a place that is not one of the user's saved
-        locations. `request_id` is operational tracing metadata — never read it
-        aloud.
+        number in the payload is already in — nothing here needs converting.
+        `precip_chance` is a percentage, not a probability. `sunrise` and
+        `sunset` are RFC3339 UTC instants. `request_id` is operational tracing
+        metadata — never read it aloud.
 
         `status` is always present. `"ok"` means fresh. `"stale"` means the
         numbers came from an expired cache and may be dated — say so.
-        `"disabled"` means the weather feature is switched off,
-        `"budget_exhausted"` means today's provider call allowance is spent,
-        and `"unavailable"` means the provider could not be reached; in those
-        three the forecast fields are absent or thin.
+        `"disabled"`, `"budget_exhausted"` and `"unavailable"` all mean no
+        usable forecast right now — the forecast fields are absent or thin.
 
         Returns `{"error": "no_saved_locations"}` when the user has saved no
         location and named no place — they can add one on their dashboard, or
@@ -106,12 +97,13 @@ def register(mcp: FastMCP, api: APIClient) -> None:
             # only do either if it receives a fact instead of a tool error.
             # This mirrors how nutrition_lookup adapts the API's 503.
             if e.status_code == 404 and e.code in ("no_locations", "place_not_found"):
-                out: dict[str, Any] = {}
-                if e.code == "no_locations":
-                    out["error"] = "no_saved_locations"
-                else:
-                    out["error"] = "place_not_found"
-                    out["place"] = place
+                # `place` is the tool's own argument — the API's 404 body
+                # carries no place to echo back.
+                out: dict[str, Any] = (
+                    {"error": "no_saved_locations"}
+                    if e.code == "no_locations"
+                    else {"error": "place_not_found", "place": place}
+                )
                 if e.request_id:
                     out["request_id"] = e.request_id
                 return out

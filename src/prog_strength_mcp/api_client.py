@@ -995,7 +995,7 @@ class APIClient:
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
 
-    # --- Weather ------------------------------------------------------
+    # --- Weather -----------------------------------------------------
 
     async def get_weather_forecast(
         self,

@@ -142,6 +142,20 @@ async def test_forecast_survives_unparseable_error_body():
     assert exc.value.message == "upstream connect error"
 
 
+@respx.mock
+async def test_forecast_survives_non_object_json_error_body():
+    """A body that parses as JSON but isn't an object has no `.get` — the
+    branch this method adds over its siblings, so it's the one to pin."""
+    respx.get(f"{BASE_URL}/weather").mock(return_value=httpx.Response(502, json=["boom"]))
+    async with APIClient(base_url=BASE_URL) as api:
+        with pytest.raises(APIError) as exc:
+            await api.get_weather_forecast(AUTH, timezone="America/Denver")
+
+    assert exc.value.status_code == 502
+    assert exc.value.code == ""
+    assert exc.value.message == '["boom"]'
+
+
 # --- tool boundary -----------------------------------------------------
 
 
@@ -222,8 +236,10 @@ async def test_tool_adapts_place_not_found_404(monkeypatch):
 @pytest.mark.parametrize("status", ["disabled", "budget_exhausted", "stale", "unavailable"])
 async def test_tool_passes_degraded_status_through(monkeypatch, status):
     """A degraded status is a 200 the API already labelled. The tool must
-    not reinterpret it — the model speaks to the status itself."""
-    payload = {"status": status}
+    not reinterpret it — the model speaks to the status itself. The unknown
+    field makes this bite: a whitelist-shaped implementation that rebuilt
+    the payload per status would drop it."""
+    payload = {**FORECAST_PAYLOAD, "status": status, "unknown_future_field": 1}
     api = _FakeAPI(result=payload)
     fn = await _tool_fn(monkeypatch, api)
 
@@ -240,11 +256,13 @@ async def test_tool_reraises_non_404_api_errors(monkeypatch):
         await fn(timezone="America/Denver")
 
 
-async def test_tool_reraises_404_with_unrecognized_code(monkeypatch):
+@pytest.mark.parametrize("code", ["location_not_found", ""])
+async def test_tool_reraises_404_with_unrecognized_code(monkeypatch, code):
     """Only the two documented codes are ordinary states. A 404 the tool
-    cannot even provoke (it sends no location_id) is a genuine fault and
-    must not be swallowed into a plausible-looking payload."""
-    api = _FakeAPI(error=APIError(404, "location not found", code="location_not_found"))
+    cannot even provoke (it sends no location_id), and a bare 404 with no
+    code at all (a router, a proxy, an older API build), are genuine faults
+    and must not be swallowed into a plausible-looking payload."""
+    api = _FakeAPI(error=APIError(404, "location not found", code=code))
     fn = await _tool_fn(monkeypatch, api)
 
     with pytest.raises(RuntimeError, match=r"API error \(404\)"):
