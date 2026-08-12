@@ -21,15 +21,22 @@ class APIError(RuntimeError):
     """Raised when the API returns a non-2xx response.
 
     `request_id` is the API's X-Request-ID for the failed call when the
-    caller captured it (currently only lookup_food_nutrition does) —
-    threaded through so even failures are traceable in CloudWatch.
+    caller captured it — threaded through so even failures are traceable
+    in CloudWatch.
+
+    `code` is the API envelope's machine-readable `code` when it carried
+    one. Only callers that must branch on the precise reason populate it:
+    the weather tool has to tell "you have saved no locations" apart from
+    "I don't know that place", and both arrive as a 404 whose human
+    message is not a contract.
     """
 
-    def __init__(self, status_code: int, message: str, request_id: str = ""):
+    def __init__(self, status_code: int, message: str, request_id: str = "", code: str = ""):
         super().__init__(f"api returned {status_code}: {message}")
         self.status_code = status_code
         self.message = message
         self.request_id = request_id
+        self.code = code
 
 
 class APIClient:
@@ -987,6 +994,57 @@ class APIClient:
         _raise_for_status(resp)
         data = resp.json().get("data")
         return data if isinstance(data, dict) else {}
+
+    # --- Weather -----------------------------------------------------
+
+    async def get_weather_forecast(
+        self,
+        auth_header: str,
+        *,
+        timezone: str,
+        place: str | None = None,
+    ) -> dict[str, Any]:
+        """GET /weather with `source=agent`. The Go API owns the OpenWeather
+        provider, the shared daily call budget, and the coordinate-keyed
+        cache; this client just forwards. `source` splits the shared budget's
+        Grafana attribution between the dashboard tile and chat — it changes
+        no behavior.
+
+        `place` is optional free text; the API matches it against the user's
+        saved location labels before spending a geocoding call, and falls
+        back to their first saved location when it is omitted.
+
+        Returns the readings object under `data` with the API's `request_id`
+        attached. A failure raises APIError carrying the envelope's
+        machine-readable `code` (`no_locations`, `place_not_found`) so the
+        tool layer can turn an ordinary state into structured data instead
+        of a tool error.
+        """
+        params: dict[str, str] = {"timezone": timezone, "source": "agent"}
+        if place:
+            params["place"] = place
+        resp = await self._client.get(
+            "/weather",
+            params=params,
+            headers={"Authorization": auth_header},
+        )
+        # Captured before the status check so failed reads stay traceable.
+        request_id = resp.headers.get("x-request-id", "")
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict):
+                detail, code = body.get("error", resp.text), body.get("code", "")
+            else:
+                detail, code = resp.text, ""
+            raise APIError(resp.status_code, detail, request_id=request_id, code=code)
+        data = resp.json().get("data")
+        out = data if isinstance(data, dict) else {}
+        if request_id:
+            out["request_id"] = request_id
+        return out
 
 
 def _utc_now_rfc3339() -> str:
