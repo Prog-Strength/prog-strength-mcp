@@ -1,3 +1,10 @@
+# [0.32.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.31.0...v0.32.0) (2026-08-12)
+
+
+### Features
+
+* **mcp:** add the get_weather_forecast tool ([#26](https://github.com/Prog-Strength/prog-strength-mcp/issues/26)) ([742c0d8](https://github.com/Prog-Strength/prog-strength-mcp/commit/742c0d8b66ef599f0814802304a2e6d636e07484))
+
 # [0.31.0](https://github.com/Prog-Strength/prog-strength-mcp/compare/v0.30.0...v0.31.0) (2026-08-11)
 
 
