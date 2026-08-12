@@ -17,6 +17,7 @@ from prog_strength_mcp import (
     running,
     steps,
     training_snapshot,
+    weather,
     whoop,
     workouts,
 )
@@ -61,6 +62,7 @@ blood_pressure.register(mcp, api)
 macro_goals.register(mcp, api)
 steps.register(mcp, api)
 training_snapshot.register(mcp, api)
+weather.register(mcp, api)
 whoop.register(mcp, api)
 
 
