@@ -1,5 +1,11 @@
 # prog-strength-mcp
 
+> [!NOTE]
+> **Prog Strength was retired in November 2026.** It is offline on purpose, to cut
+> hosting costs, and this repository is archived as read-only. progstrength.fitness
+> no longer serves the app. The database, media, and infrastructure state are kept in
+> cold storage; see [prog-strength-archive](https://github.com/Prog-Strength/prog-strength-archive).
+
 A Model Context Protocol (MCP) server that exposes Prog Strength data to LLMs.
 
 Built with [FastMCP](https://github.com/jlowin/fastmcp) and served over
